@@ -1,4 +1,5 @@
-use nom::bytes::complete::{is_not, take_while, take_while1, take_while_m_n};
+use nom::branch::alt;
+use nom::bytes::complete::{is_not, take_until, take_while, take_while1, take_while_m_n};
 use nom::combinator::opt;
 use nom::sequence::{preceded, terminated, tuple};
 use nom::IResult;
@@ -27,7 +28,10 @@ pub fn parse_knot_header(input: &str) -> IResult<&str, &str> {
     Ok((input, title.trim_end()))
 }
 
-//pub fn parse_
+pub fn parse_text_line(input: &str) -> IResult<&str, &str> {
+    let (input, text) = alt((take_until("->"), take_while(|c| !"\r\n".contains(c))))(input)?;
+    Ok((input, text))
+}
 
 #[cfg(test)]
 mod tests {
@@ -58,5 +62,21 @@ mod tests {
         assert!(parse_knot_header(" = train_station = \n").is_err()); // not enough equals signs
         assert!(parse_knot_header("== train station ==\n").is_err()); // no spaces allowed
         assert!(parse_knot_header("train station\n").is_err()); // no equals at the start
+    }
+
+    #[test]
+    fn test_parse_text_line() {
+        assert_eq!(
+            parse_text_line("a line of text\n"),
+            Ok(("\n", "a line of text"))
+        );
+        assert_eq!(
+            parse_text_line("a line of text"),
+            Ok(("", "a line of text"))
+        );
+        assert_eq!(
+            parse_text_line("a line of text -> end"),
+            Ok(("-> end", "a line of text "))
+        );
     }
 }
