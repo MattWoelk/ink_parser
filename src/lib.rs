@@ -2,7 +2,9 @@
 //use combine::parser::range::take_while;
 //use combine::parser::token::Token;
 use combine::parser::char::{char, digit};
-use combine::{many, ParseError, Parser, Stream};
+use combine::parser::range::range;
+use combine::parser::repeat::take_until;
+use combine::{attempt, many, ParseError, Parser, RangeStream, Stream};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Knot {
@@ -12,7 +14,10 @@ pub struct Knot {
 
 impl Default for Knot {
     fn default() -> Self {
-        todo!()
+        Knot {
+            title: "".to_string(),
+            lines: vec![],
+        }
     }
 }
 
@@ -34,12 +39,20 @@ impl Default for Knot {
 //    Knot::default()
 //}
 
-fn knot<Input>() -> impl Parser<Input, Output = Knot>
+//fn knot<Input>() -> impl Parser<Input, Output = Knot>
+//where
+//    Input: Stream<Token = char>,
+//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+//{
+//    take_until::<String, Input, _>(digit()).map(|_| Knot::default())
+//}
+
+fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
 where
-    Input: Stream<Token = char>,
+    Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    two_digits().map(|_| Knot::default())
+    take_until::<String, Input, _>(attempt(range("=="))).map(|_| Knot::default())
 }
 
 #[derive(PartialEq, Debug)]
