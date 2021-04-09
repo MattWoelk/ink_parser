@@ -40,7 +40,7 @@ where
 {
     //take_until(or(crlf(), eof().map(|_| '_')))
     //range("==") //.map(|s: &'a str| s.to_string())
-    let tool = take_until(string("\n").or(string("\r\n")));
+    let tool = take_until::<String, _, _>(string("\n").or(string("\r\n")));
     let tool = tool
         .and(string("\r\n")) // TODO: why isn't this failing? it's not even trying to parse this...
         .0
