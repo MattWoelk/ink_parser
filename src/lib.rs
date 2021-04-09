@@ -1,10 +1,10 @@
 #![warn(rust_2018_idioms)]
-//use combine::parser::range::take_while;
-//use combine::parser::token::Token;
+#![allow(unused)]
+use combine::parser::char::newline;
 use combine::parser::char::{char, digit};
 use combine::parser::range::range;
 use combine::parser::repeat::take_until;
-use combine::{attempt, many, ParseError, Parser, RangeStream, Stream};
+use combine::{attempt, many, many1, ParseError, Parser, RangeStream, Stream};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Knot {
@@ -21,38 +21,33 @@ impl Default for Knot {
     }
 }
 
-//fn build_knot_parser<Input>() -> impl Parser<Input, Output = Knot>
-//where
-//    Input: Stream<Token = char>,
-//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-//{
-//    let tool = take_while(|c: char| c.is_alphabetic());
-//
-//    tool.map(|c| Knot::default())
-//}
-//
-//fn parse_knot(text: &str) -> Knot {
-//    let mut parser = take_while(|c: char| c.is_alphabetic());
-//    let result = dbg!(parser.parse(text));
-//    let a: dyn Extend<_> = ();
-//
-//    Knot::default()
-//}
-
-//fn knot<Input>() -> impl Parser<Input, Output = Knot>
-//where
-//    Input: Stream<Token = char>,
-//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-//{
-//    take_until::<String, Input, _>(digit()).map(|_| Knot::default())
-//}
-
 fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    take_until::<String, Input, _>(attempt(range("=="))).map(|_| Knot::default())
+    take_until::<String, Input, _>(attempt(range("=="))).map(|c| {
+        Knot::default() // {
+                        //title: "?".to_string(),
+                        //lines: lines().parse(&*c).unwrap().0,
+                        //})
+    })
+}
+
+fn line<'a, Input>() -> impl Parser<Input, Output = String>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    take_until(newline())
+}
+
+fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    many1(line())
 }
 
 #[derive(PartialEq, Debug)]
@@ -65,7 +60,6 @@ pub struct Date {
 fn two_digits<Input>() -> impl Parser<Input, Output = i32>
 where
     Input: Stream<Token = char>,
-    // Necessary due to rust-lang/rust#24159
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     (digit(), digit()).map(|(x, y): (char, char)| {
@@ -77,9 +71,9 @@ where
 
 /// Parses a date
 /// 2010-01-30
-fn date<Input>() -> impl Parser<Input, Output = Date>
+fn date<'a, Input>() -> impl Parser<Input, Output = Date>
 where
-    Input: Stream<Token = char>,
+    Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     (
