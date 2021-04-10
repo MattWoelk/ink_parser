@@ -11,6 +11,7 @@ use combine::{
     attempt, eof, many, many1, optional, sep_by, sep_by1, skip_many1, token, ParseError, Parser,
     RangeStream, Stream,
 };
+use pretty_assertions::{assert_eq, assert_ne};
 use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -41,18 +42,6 @@ where
 {
     many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
         .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
-}
-
-fn quoted_string<Input>() -> impl Parser<Input, Output = String>
-where
-    Input: Stream<Token = char>,
-    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-{
-    between(
-        any(),
-        token('}'),
-        many::<String, _, _>(satisfy(|c| c != '}')),
-    )
 }
 
 fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
@@ -94,13 +83,18 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    // TODO: parse the first knot, which has no title
-    let lines = ();
     knot_without_title()
-        .and(many::<Vec<_>, _, _>(knot()))
-        .map(|(into_knot, other_knots)| {
-            //dbg!(c);
-            Story::default()
+        .and(many::<Vec<Knot>, _, _>(knot()))
+        .map(|(into_knot, mut other_knots)| {
+            let mut knots: Vec<Knot> = vec![];
+            knots.push(into_knot);
+            knots.append(other_knots.as_mut());
+            Story {
+                knots: knots
+                    .into_iter()
+                    .map(|knot: Knot| (knot.title.clone(), knot))
+                    .collect(),
+            }
         })
 }
 
@@ -169,8 +163,6 @@ fn test_line() {
 
 #[test]
 fn test_story() {
-    dbg!(line().parse(include_str!("../stories/basic_story.ink")));
-    dbg!(lines().parse(include_str!("../stories/basic_story.ink")));
     dbg!(parse_story(include_str!("../stories/basic_story.ink")));
     todo!()
 }
