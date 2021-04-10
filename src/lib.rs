@@ -40,8 +40,10 @@ where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-        .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
+    spaces().with(
+        many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+            .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
+    )
 }
 
 fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
@@ -71,11 +73,10 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    //take_until(or(attempt(string("==")), eof().map(|_| ""))).map(|c: String| {
-    lines().map(|text_lines| Knot {
+    spaces().with(lines().map(|text_lines| Knot {
         title: "INTRO".into(),
         lines: text_lines,
-    })
+    }))
 }
 
 fn story<'a, Input>() -> impl Parser<Input, Output = Story>
@@ -83,11 +84,10 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    knot_without_title()
-        .and(many::<Vec<Knot>, _, _>(knot()))
-        .map(|(into_knot, mut other_knots)| {
+    knot_without_title().and(many(knot())).map(
+        |(intro_knot, mut other_knots): (Knot, Vec<Knot>)| {
             let mut knots: Vec<Knot> = vec![];
-            knots.push(into_knot);
+            knots.push(intro_knot);
             knots.append(other_knots.as_mut());
             Story {
                 knots: knots
@@ -95,7 +95,8 @@ where
                     .map(|knot: Knot| (knot.title.clone(), knot))
                     .collect(),
             }
-        })
+        },
+    )
 }
 
 pub fn parse_story(text: &str) -> Story {
@@ -163,6 +164,8 @@ fn test_line() {
 
 #[test]
 fn test_story() {
-    dbg!(parse_story(include_str!("../stories/basic_story.ink")));
-    todo!()
+    assert_eq!(
+        story().parse(include_str!("../stories/basic_story.ink")),
+        Ok((Story::default(), ""))
+    );
 }
