@@ -1,11 +1,12 @@
 #![warn(rust_2018_idioms)]
 #![allow(unused)]
-use combine::parser;
 use combine::parser::char::{char, digit, spaces, string};
 use combine::parser::char::{crlf, newline};
-use combine::parser::choice::or;
-use combine::parser::range::take_while1;
-use combine::parser::repeat::take_until;
+use combine::parser::choice::{choice, or};
+use combine::parser::range::{recognize, take_while1};
+use combine::parser::repeat::{skip_until, take_until};
+use combine::parser::sequence::skip;
+use combine::{any, between, chainl1, look_ahead, none_of, parser, satisfy, skip_count};
 use combine::{
     attempt, eof, many, many1, optional, sep_by, sep_by1, skip_many1, token, ParseError, Parser,
     RangeStream, Stream,
@@ -33,21 +34,53 @@ pub struct Story {
     knots: HashMap<KnotTitle, Knot>,
 }
 
-fn line<'a, Input>() -> impl Parser<Input, Output = String>
+//fn line<'a, Input>() -> impl Parser<Input, Output = String>
+//where
+//    Input: RangeStream<Token = char, Range = &'a str>,
+//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+//{
+//    ////take_until(or(crlf(), eof().map(|_| '_')))
+//    ////range("==") //.map(|s: &'a str| s.to_string())
+//    //let tool = take_until::<String, _, _>(string("\n").or(string("\r\n")));
+//    //let tool = tool
+//    //    .and(string("\r\n")) // TODO: why isn't this failing? it's not even trying to parse this...
+//    //    .0
+//    //    .and(token('\n'))
+//    //    .0;
+//    ////tool
+//    //look_ahead(none_of("\r\n".chars()))
+//    //    //.and(sep_by1(tool, string("NEVER FIND THIS TEXT SRTIEFTNERSt")))
+//    //    .and(tool)
+//    //    .1
+//    //// TODO: why is this nonsense required? Why does it make it work? Shouldn't I be able to return tool on its own???
+//
+//    //chainl1(any(), or(string("\r\n"), string("\n")))
+//
+//    recognize(skip_until(token('\n'))).map(move |x: &'a str| {
+//        dbg!(x);
+//        x.to_string()
+//    })
+//}
+
+fn line<Input>() -> impl Parser<Input, Output = String>
 where
-    Input: RangeStream<Token = char, Range = &'a str>,
+    Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    //take_until(or(crlf(), eof().map(|_| '_')))
-    //range("==") //.map(|s: &'a str| s.to_string())
-    let tool = take_until::<String, _, _>(string("\n").or(string("\r\n")));
-    let tool = tool
-        .and(string("\r\n")) // TODO: why isn't this failing? it's not even trying to parse this...
-        .0
-        .and(token('\n'))
-        .0;
-    //tool
-    sep_by1(tool, string("NEVER FIND THIS TEXT SRTIEFTNERSt")) // TODO: why is this nonsense required? Why does it make it work? Shouldn't I be able to return tool on its own???
+    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+        .skip(optional(token('\n').or(token('\r').skip(token('\n')))))
+}
+
+fn quoted_string<Input>() -> impl Parser<Input, Output = String>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    between(
+        any(),
+        token('}'),
+        many::<String, _, _>(satisfy(|c| c != '}')),
+    )
 }
 
 fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
@@ -61,7 +94,7 @@ where
     //        .map(|digits: String| digits.parse::<u32>().unwrap())
     //};
 
-    many1(line::<'a>().map(|s| s.into()))
+    many1(line().map(|s| s.into()))
 }
 
 fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
@@ -70,7 +103,7 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     string("==")
-        .with(line::<'a>())
+        .with(line())
         .and(lines())
         .map(|(knot_title, text_lines)| Knot {
             title: knot_title.into(),
@@ -156,6 +189,10 @@ where
 fn test_1() {
     //let mut result = story().parse(include_str!("../stories/basic_story.ink"));
     //dbg!(result);
+    //dbg!(quoted_string().parse("{a quoted string}"));
+    //dbg!(quoted_string().parse("a quoted string}"));
+    //todo!();
+
     dbg!(line().parse("this is one line with no line endings"));
     dbg!(line().parse("this is one line with one line ending\n"));
     dbg!(line().parse("this is one line with line endings\r\n"));
