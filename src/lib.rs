@@ -34,41 +34,13 @@ pub struct Story {
     knots: HashMap<KnotTitle, Knot>,
 }
 
-//fn line<'a, Input>() -> impl Parser<Input, Output = String>
-//where
-//    Input: RangeStream<Token = char, Range = &'a str>,
-//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-//{
-//    ////take_until(or(crlf(), eof().map(|_| '_')))
-//    ////range("==") //.map(|s: &'a str| s.to_string())
-//    //let tool = take_until::<String, _, _>(string("\n").or(string("\r\n")));
-//    //let tool = tool
-//    //    .and(string("\r\n")) // TODO: why isn't this failing? it's not even trying to parse this...
-//    //    .0
-//    //    .and(token('\n'))
-//    //    .0;
-//    ////tool
-//    //look_ahead(none_of("\r\n".chars()))
-//    //    //.and(sep_by1(tool, string("NEVER FIND THIS TEXT SRTIEFTNERSt")))
-//    //    .and(tool)
-//    //    .1
-//    //// TODO: why is this nonsense required? Why does it make it work? Shouldn't I be able to return tool on its own???
-//
-//    //chainl1(any(), or(string("\r\n"), string("\n")))
-//
-//    recognize(skip_until(token('\n'))).map(move |x: &'a str| {
-//        dbg!(x);
-//        x.to_string()
-//    })
-//}
-
 fn line<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-        .skip(optional(token('\n').or(token('\r').skip(token('\n')))))
+        .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
 }
 
 fn quoted_string<Input>() -> impl Parser<Input, Output = String>
@@ -88,12 +60,6 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    //let line = || {
-    //    many1(digit())
-    //        .skip(spaces())
-    //        .map(|digits: String| digits.parse::<u32>().unwrap())
-    //};
-
     many1(line().map(|s| s.into()))
 }
 
@@ -186,21 +152,25 @@ where
 }
 
 #[test]
-fn test_1() {
-    //let mut result = story().parse(include_str!("../stories/basic_story.ink"));
-    //dbg!(result);
-    //dbg!(quoted_string().parse("{a quoted string}"));
-    //dbg!(quoted_string().parse("a quoted string}"));
-    //todo!();
+fn test_line() {
+    assert_eq!(
+        line().parse("no line endings"),
+        Ok(("no line endings".to_string(), ""))
+    );
+    assert_eq!(
+        line().parse("one line ending\n"),
+        Ok(("one line ending".to_string(), ""))
+    );
+    assert_eq!(
+        line().parse("both line endings\r\n"),
+        Ok(("both line endings".to_string(), ""))
+    );
+}
 
-    dbg!(line().parse("this is one line with no line endings"));
-    dbg!(line().parse("this is one line with one line ending\n"));
-    dbg!(line().parse("this is one line with line endings\r\n"));
+#[test]
+fn test_story() {
     dbg!(line().parse(include_str!("../stories/basic_story.ink")));
     dbg!(lines().parse(include_str!("../stories/basic_story.ink")));
     dbg!(parse_story(include_str!("../stories/basic_story.ink")));
-
-    //dbg!(date().parse("2015-08-02"));
-
     todo!()
 }
