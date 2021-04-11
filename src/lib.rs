@@ -1,23 +1,31 @@
 #![warn(rust_2018_idioms)]
 #![allow(unused)]
+use combine::error::StringStreamError;
 use combine::parser::char::{char, digit, spaces, string};
 use combine::parser::char::{crlf, newline};
 use combine::parser::choice::{choice, or};
 use combine::parser::range::{recognize, take_while1};
 use combine::parser::repeat::{skip_until, take_until};
 use combine::parser::sequence::skip;
-use combine::{any, between, chainl1, look_ahead, none_of, parser, satisfy, skip_count};
+use combine::{
+    any, between, chainl1, look_ahead, none_of, not_followed_by, parser, satisfy, skip_count,
+};
 use combine::{
     attempt, eof, many, many1, optional, sep_by, sep_by1, skip_many1, token, ParseError, Parser,
     RangeStream, Stream,
 };
+use maplit::hashmap;
 use pretty_assertions::{assert_eq, assert_ne};
 use std::collections::HashMap;
+
+// TODO: diverts should only parse one word, don't use "line()" for everything.
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Knot {
     title: String,
     lines: Vec<String>,
+    choices: Vec<Choice>,
+    divert: Option<Divert>,
 }
 
 impl Default for Knot {
@@ -25,6 +33,8 @@ impl Default for Knot {
         Knot {
             title: "".to_string(),
             lines: vec![],
+            choices: vec![],
+            divert: None,
         }
     }
 }
@@ -41,8 +51,10 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     spaces().with(
-        many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-            .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
+        not_followed_by(char('+').or(char('-'))).with(
+            many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+                .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
+        ),
     )
 }
 
@@ -54,17 +66,75 @@ where
     many1(line().map(|s| s.into()))
 }
 
+type Divert = String;
+type Choice = (String, Option<Vec<String>>, Option<Divert>);
+
+// TODO: variables, conditionals, etc.
+enum LineTypes {
+    TEXT(String),
+    DIVERT(Divert),
+    CHOICE(Choice),
+}
+
+fn divert_line<'a, Input>() -> impl Parser<Input, Output = LineTypes>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    string("->")
+        .and(many::<String, _, _>(char(' ')))
+        .with(line())
+        .map(|a| LineTypes::DIVERT(a))
+}
+
+fn choice_line<'a, Input>() -> impl Parser<Input, Output = LineTypes>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    char('+')
+        .and(many::<String, _, _>(char(' ')))
+        .with(line())
+        .map(|a| LineTypes::CHOICE((a, None, None)))
+}
+
+fn knot_body_lines<'a, Input>() -> impl Parser<Input, Output = Vec<LineTypes>>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    many1::<Vec<LineTypes>, _, _>(choice((
+        divert_line(),
+        choice_line(),
+        line().map(|x| LineTypes::TEXT(x)),
+    )))
+}
+
+fn knot_title<'a, Input>() -> impl Parser<Input, Output = String>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    spaces().with(
+        string("==")
+            .skip(many::<String, _, _>(char('=')))
+            .skip(spaces())
+            .with(line()),
+    )
+}
+
 fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    string("==")
-        .with(line())
-        .and(lines())
-        .map(|(knot_title, text_lines)| Knot {
-            title: knot_title.into(),
-            lines: text_lines,
+    knot_title()
+        .and(knot_without_title())
+        .map(|(knot_title, knot)| Knot {
+            title: knot_title,
+            lines: knot.lines,
+            choices: vec![], // TODO
+            divert: None,    // TODO
         })
 }
 
@@ -73,10 +143,19 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    spaces().with(lines().map(|text_lines| Knot {
-        title: "INTRO".into(),
-        lines: text_lines,
-    }))
+    spaces()
+        .with(optional(lines()))
+        .and(optional(many::<Vec<LineTypes>, _, _>(choice_line())))
+        .and(optional(divert_line()))
+        .map(|((a, b), c)| Knot {
+            title: "INTRO".to_string(),
+            lines: match a {
+                Some(lines) => lines,
+                None => vec![], // TODO
+            },
+            choices: vec![], // TODO
+            divert: None,    // TODO
+        })
 }
 
 fn story<'a, Input>() -> impl Parser<Input, Output = Story>
@@ -149,6 +228,14 @@ where
 #[test]
 fn test_line() {
     assert_eq!(
+        line().parse("+ option"),
+        Err(StringStreamError::UnexpectedParse)
+    );
+    assert_eq!(
+        line().parse("-> divert"),
+        Err(StringStreamError::UnexpectedParse)
+    );
+    assert_eq!(
         line().parse("no line endings"),
         Ok(("no line endings".to_string(), ""))
     );
@@ -160,10 +247,47 @@ fn test_line() {
         line().parse("both line endings\r\n"),
         Ok(("both line endings".to_string(), ""))
     );
+    assert_eq!(
+        line().parse("          line starting with spaces\r\n"),
+        Ok(("line starting with spaces".to_string(), ""))
+    );
+    assert_eq!(
+        line().parse("       \n \r\n   line starting with newlines and spaces\r\n"),
+        Ok(("line starting with newlines and spaces".to_string(), ""))
+    );
 }
 
 #[test]
 fn test_story() {
+    assert_eq!(
+        story().parse(include_str!("../stories/two_knots.ink")),
+        Ok((
+            Story {
+                knots: hashmap! {
+                    "INTRO".into() => Knot {
+                        title: "INTRO".into(),
+                        lines: vec![],
+                        choices: vec![],
+                        divert: Some("paris".to_string()),
+                    },
+                    "paris".into() => Knot {
+                        title: "paris".into(),
+                        lines: vec![],
+                        choices: vec![],
+                        divert: Some("ending".to_string()),
+                    },
+                    "ending".into() => Knot {
+                        title: "ending".into(),
+                        lines: vec![],
+                        choices: vec![],
+                        divert: Some("END".to_string()),
+                    },
+                }
+            },
+            ""
+        ))
+    );
+
     assert_eq!(
         story().parse(include_str!("../stories/basic_story.ink")),
         Ok((Story::default(), ""))
