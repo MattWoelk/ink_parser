@@ -100,6 +100,7 @@ where
     char('+')
         .and(many::<String, _, _>(char(' ')))
         .with(line())
+        .skip(spaces())
         .and(optional(lines()))
         .and(optional(divert_line()))
         .map(|((title, lines), divert)| {
@@ -494,4 +495,35 @@ fn test_story() {
             ""
         ))
     );
+
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/spaces_before_divert.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        lines: vec![
+                            "a thing".to_string()
+                        ],
+                        choices: vec![
+                            (
+                                "🙁".to_string(),
+                                None,
+                                Some("ending".to_string())
+                            )
+                        ],
+                        divert: None
+                    }
+                }
+            },
+            ""
+        ))
+    );
+
+    // TODO: need to have "stitches" (sub knots) first
+    //assert_eq!(
+    //    story().easy_parse(include_str!("../stories/too_many_blank_lines.ink")),
+    //    Ok((Story::default(), ""))
+    //);
 }
