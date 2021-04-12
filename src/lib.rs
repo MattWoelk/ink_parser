@@ -27,7 +27,7 @@ use std::unreachable;
 pub struct Knot {
     title: String,
     lines: Vec<String>,
-    choices: Vec<Choice>,
+    choices: Vec<Choice>, // TODO: Should this be a BTreeMap?
     divert: Option<Divert>,
 }
 
@@ -70,7 +70,7 @@ where
 }
 
 type Divert = String;
-type Choice = (String, Option<Vec<String>>, Option<Divert>);
+type Choice = (String, Option<Vec<String>>, Option<Divert>); // TODO: Should this middle one be a BTreeMap?
 
 // TODO: variables, conditionals, etc.
 // TODO: should the choice_lines (etc.) function return a piece of these, but have them be able to be cast to this main enum or something? What's the right way to do this?
@@ -427,6 +427,67 @@ fn test_story() {
                         ],
                         choices: vec![],
                         divert: Some("END".to_string()),
+                    },
+                }
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/basic_story.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        lines: vec![
+                            "Want to go to paris?".to_string(),
+                            "PLEASE!?".to_string(),
+                            "will you?????????".to_string(),
+                        ],
+                        choices: vec![
+                            (
+                                "yeah!".to_string(),
+                                None,
+                                Some(
+                                    "paris".to_string(),
+                                ),
+                            ),
+                            (
+                                "\"Around the world, Monsieur?\"".to_string(),
+                                Some(
+                                    vec![
+                                        "I was utterly astonished.".to_string(),
+                                        "\"You are in jest!\" I told him in dignified affront. THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG!".to_string(),
+                                    ],
+                                ),
+                                Some(
+                                    "ending".to_string(),
+                                ),
+                            ),
+                        ],
+                        divert: None,
+                    },
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        lines: vec![
+                            "THE END now.".to_string(),
+                        ],
+                        choices: vec![],
+                        divert: Some(
+                            "END".to_string(),
+                        ),
+                    },
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        lines: vec![
+                            "We are in paris.".to_string(),
+                        ],
+                        choices: vec![],
+                        divert: Some(
+                            "ending".to_string(),
+                        ),
                     },
                 }
             },
