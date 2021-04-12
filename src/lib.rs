@@ -14,9 +14,9 @@ use combine::{
     attempt, eof, many, many1, optional, sep_by, sep_by1, skip_many1, token, ParseError, Parser,
     RangeStream, Stream,
 };
-use maplit::hashmap;
+use maplit::btreemap;
 use pretty_assertions::{assert_eq, assert_ne};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 // TODO: diverts should only parse one word, don't use "line()" for everything.
 
@@ -42,7 +42,7 @@ impl Default for Knot {
 type KnotTitle = String;
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
 pub struct Story {
-    knots: HashMap<KnotTitle, Knot>,
+    knots: BTreeMap<KnotTitle, Knot>,
 }
 
 fn line<Input>() -> impl Parser<Input, Output = String>
@@ -70,6 +70,7 @@ type Divert = String;
 type Choice = (String, Option<Vec<String>>, Option<Divert>);
 
 // TODO: variables, conditionals, etc.
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum LineTypes {
     TEXT(String),
     DIVERT(Divert),
@@ -92,10 +93,23 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    char('+')
-        .and(many::<String, _, _>(char(' ')))
-        .with(line())
-        .map(|a| LineTypes::CHOICE((a, None, None)))
+    spaces().with(
+        char('+')
+            .and(many::<String, _, _>(char(' ')))
+            .with(line())
+            .and(optional(lines()))
+            .and(optional(divert_line()))
+            .map(|((title, lines), divert)| {
+                LineTypes::CHOICE((
+                    title,
+                    lines,
+                    divert.map(|divert| match divert {
+                        LineTypes::DIVERT(text) => text,
+                        _ => "".to_string(),
+                    }),
+                ))
+            }),
+    )
 }
 
 fn knot_body_lines<'a, Input>() -> impl Parser<Input, Output = Vec<LineTypes>>
@@ -134,7 +148,7 @@ where
             title: knot_title,
             lines: knot.lines,
             choices: vec![], // TODO
-            divert: None,    // TODO
+            divert: knot.divert,
         })
 }
 
@@ -151,10 +165,13 @@ where
             title: "INTRO".to_string(),
             lines: match a {
                 Some(lines) => lines,
-                None => vec![], // TODO
+                None => vec![],
             },
             choices: vec![], // TODO
-            divert: None,    // TODO
+            divert: c.map(|x| match x {
+                LineTypes::DIVERT(divert) => divert,
+                _ => "".to_string(),
+            }),
         })
 }
 
@@ -258,27 +275,69 @@ fn test_line() {
 }
 
 #[test]
+fn test_choice() {
+    assert_eq!(
+        choice_line().parse("+ yeah"),
+        Ok((LineTypes::CHOICE(("yeah".to_string(), None, None)), ""))
+    );
+
+    assert_eq!(
+        choice_line().parse("+ yeah\n  one\ntwo\n     three"),
+        Ok((
+            LineTypes::CHOICE((
+                "yeah".to_string(),
+                Some(vec![
+                    "one".to_string(),
+                    "two".to_string(),
+                    "three".to_string()
+                ]),
+                None
+            )),
+            ""
+        ))
+    );
+
+    assert_eq!(
+        choice_line().parse("+ yeah\n  one\ntwo\n-> paris"),
+        Ok((
+            LineTypes::CHOICE((
+                "yeah".to_string(),
+                Some(vec!["one".to_string(), "two".to_string(),]),
+                Some("paris".to_string())
+            )),
+            ""
+        ))
+    );
+}
+
+#[test]
 fn test_story() {
     assert_eq!(
         story().parse(include_str!("../stories/two_knots.ink")),
         Ok((
             Story {
-                knots: hashmap! {
-                    "INTRO".into() => Knot {
-                        title: "INTRO".into(),
-                        lines: vec![],
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        lines: vec![
+                            "to paris".to_string()
+                        ],
                         choices: vec![],
                         divert: Some("paris".to_string()),
                     },
-                    "paris".into() => Knot {
-                        title: "paris".into(),
-                        lines: vec![],
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        lines: vec![
+                            "We are in paris.".to_string()
+                        ],
                         choices: vec![],
                         divert: Some("ending".to_string()),
                     },
-                    "ending".into() => Knot {
-                        title: "ending".into(),
-                        lines: vec![],
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        lines: vec![
+                            "THE END now.".to_string()
+                        ],
                         choices: vec![],
                         divert: Some("END".to_string()),
                     },
@@ -289,7 +348,37 @@ fn test_story() {
     );
 
     assert_eq!(
-        story().parse(include_str!("../stories/basic_story.ink")),
-        Ok((Story::default(), ""))
+        story().parse(include_str!("../stories/two_knots_with_choices.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        lines: vec![
+                            "to paris".to_string()
+                        ],
+                        choices: vec![],
+                        divert: Some("paris".to_string()),
+                    },
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        lines: vec![
+                            "We are in paris.".to_string()
+                        ],
+                        choices: vec![],
+                        divert: Some("ending".to_string()),
+                    },
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        lines: vec![
+                            "THE END now.".to_string()
+                        ],
+                        choices: vec![],
+                        divert: Some("END".to_string()),
+                    },
+                }
+            },
+            ""
+        ))
     );
 }
