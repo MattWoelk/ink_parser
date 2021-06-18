@@ -44,12 +44,12 @@ fn test_line() {
 fn test_divert() {
     assert_eq!(
         divert_line().easy_parse("-> yeah"),
-        Ok((LineTypes::DIVERT(("yeah".to_string())), ""))
+        Ok(("yeah".to_string(), ""))
     );
 
     //assert_eq!(
     //    divert_line().easy_parse("    -> yeah"),
-    //    Ok((LineTypes::DIVERT(("yeah".to_string())), ""))
+    //    Ok((LineType::DIVERT(("yeah".to_string())), ""))
     //);
 }
 
@@ -57,13 +57,13 @@ fn test_divert() {
 fn test_choice() {
     assert_eq!(
         choice_lines().easy_parse("+ yeah"),
-        Ok((LineTypes::CHOICE(("yeah".to_string(), None, None)), ""))
+        Ok(((("yeah".to_string(), None, None)), ""))
     );
 
     assert_eq!(
         choice_lines().easy_parse("+ yeah\n  one\ntwo\n     three"),
         Ok((
-            LineTypes::CHOICE((
+            ((
                 "yeah".to_string(),
                 Some(vec![
                     "one".to_string(),
@@ -79,7 +79,7 @@ fn test_choice() {
     assert_eq!(
         choice_lines().easy_parse("+ yeah\n  one\ntwo\n-> paris"),
         Ok((
-            LineTypes::CHOICE((
+            ((
                 "yeah".to_string(),
                 Some(vec!["one".to_string(), "two".to_string(),]),
                 Some("paris".to_string())
@@ -101,7 +101,7 @@ fn test_choice() {
     assert_eq!(
         choice_lines().easy_parse("+ yeah\n  one\ntwo\n   -> paris"),
         Ok((
-            LineTypes::CHOICE((
+            ((
                 "yeah".to_string(),
                 Some(vec!["one".to_string(), "two".to_string(),]),
                 Some("paris".to_string())

@@ -76,15 +76,14 @@ type Divert = String;
 type Choice = (String, Option<Vec<String>>, Option<Divert>); // TODO: Should this middle one be a BTreeMap?
 
 // TODO: variables, conditionals, etc.
-// TODO: should the choice_lines (etc.) function return a piece of these, but have them be able to be cast to this main enum or something? What's the right way to do this?
 #[derive(Debug, PartialEq, Eq, Clone)]
-enum LineTypes {
+enum LineType {
     TEXT(String),
     DIVERT(Divert),
     CHOICE(Choice),
 }
 
-fn divert_line<'a, Input>() -> impl Parser<Input, Output = LineTypes>
+fn divert_line<'a, Input>() -> impl Parser<Input, Output = Divert>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
@@ -92,10 +91,9 @@ where
     string("->")
         .and(many::<String, _, _>(char(' ')))
         .with(line())
-        .map(|a| LineTypes::DIVERT(a))
 }
 
-fn choice_lines<'a, Input>() -> impl Parser<Input, Output = LineTypes>
+fn choice_lines<'a, Input>() -> impl Parser<Input, Output = Choice>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
@@ -105,28 +103,28 @@ where
         .with(line())
         .skip(spaces())
         .and(optional(lines()))
-        .and(optional(divert_line()))
+        .and(optional(divert_line().map(LineType::DIVERT)))
         .map(|((title, lines), divert)| {
-            LineTypes::CHOICE((
+            (
                 title,
                 lines,
                 divert.map(|divert| match divert {
-                    LineTypes::DIVERT(text) => text,
+                    LineType::DIVERT(text) => text,
                     _ => "".to_string(),
                 }),
-            ))
+            )
         })
 }
 
-fn knot_body_lines<'a, Input>() -> impl Parser<Input, Output = Vec<LineTypes>>
+fn knot_body_lines<'a, Input>() -> impl Parser<Input, Output = Vec<LineType>>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many1::<Vec<LineTypes>, _, _>(choice((
-        divert_line(),
-        choice_lines(), // TODO: if this outputs something different than divert_line(), we'll need a converter in here somehow. Is that easy to do?
-        line().map(|x| LineTypes::TEXT(x)),
+    many1::<Vec<LineType>, _, _>(choice((
+        divert_line().map(LineType::DIVERT),
+        choice_lines().map(LineType::CHOICE),
+        line().map(LineType::TEXT),
     )))
 }
 
@@ -165,7 +163,7 @@ where
 {
     spaces()
         .with(optional(lines()))
-        .and(optional(many::<Vec<LineTypes>, _, _>(choice_lines())))
+        .and(optional(many::<Vec<Choice>, _, _>(choice_lines())))
         .and(optional(divert_line()))
         .map(|((lines, choices), divert)| Knot {
             title: "INTRO".to_string(),
@@ -174,19 +172,10 @@ where
                 None => vec![],
             },
             choices: match choices {
-                Some(choices) => choices
-                    .into_iter()
-                    .map(|x| match x {
-                        LineTypes::CHOICE(c) => c,
-                        _ => unreachable!(),
-                    })
-                    .collect(),
+                Some(choices) => choices,
                 None => vec![],
             },
-            divert: divert.map(|x| match x {
-                LineTypes::DIVERT(divert) => divert,
-                _ => "".to_string(),
-            }),
+            divert: divert,
         })
 }
 
