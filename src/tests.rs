@@ -96,13 +96,13 @@ fn test_divert() {
 
     //assert_eq!(
     //    divert_line().easy_parse("    -> yeah"),
-    //    Ok((LineType::DIVERT(("yeah".to_string())), ""))
+    //    Ok((("yeah".to_string()), ""))
     //);
 
-    let text = "\n ===";
+    let text = "===";
     assert_eq!(
         pointer_offset_to_row_col(divert_line().easy_parse(text).unwrap_err().position, text),
-        (2, 2)
+        (1, 1)
     );
 }
 
