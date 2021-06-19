@@ -2,8 +2,55 @@
 use crate::*;
 #[cfg(test)]
 use combine::error::StringStreamError;
+use combine::stream::PointerOffset;
 #[cfg(test)]
 use pretty_assertions::{assert_eq, assert_ne};
+
+// TODO: use this to both make errors easier to read, and easier to test
+#[cfg(test)]
+fn pointer_offset_to_row_col(pointer_offset: PointerOffset<str>, text: &str) -> (usize, usize) {
+    let index = pointer_offset.translate_position(text);
+
+    index_to_row_col(index, text)
+}
+
+#[cfg(test)]
+/// row and column are 1-indexed
+fn index_to_row_col(index: usize, text: &str) -> (usize, usize) {
+    if text.len() == 0 {
+        return (0, 0); // TODO: should this return an error instead? or return (1,1)?
+    }
+
+    //let text = &;
+    let last_newline = text[..index + 1].rfind('\n').unwrap_or(0);
+    let number_of_newlines = text[..index].chars().filter(|&c| c == '\n').count();
+
+    dbg!(index);
+    dbg!(last_newline);
+    dbg!(number_of_newlines);
+
+    let row = number_of_newlines + 1;
+    let column = index - last_newline + 1 - if number_of_newlines > 0 { 1 } else { 0 };
+
+    (row, column)
+}
+
+#[test]
+fn text_index_to_row_col() {
+    fn find_x(text: &str) -> (usize, usize) {
+        index_to_row_col(text.find('X').unwrap(), text)
+    }
+
+    assert_eq!(find_x("X"), (1, 1));
+    assert_eq!(find_x("     X      "), (1, 6));
+    assert_eq!(find_x("     X\n     "), (1, 6));
+    assert_eq!(find_x("     \nX     "), (2, 1));
+    assert_eq!(find_x("     \n X    "), (2, 2));
+    assert_eq!(find_x("\n     X      "), (2, 6));
+    assert_eq!(find_x("\n\n     X      "), (3, 6));
+    assert_eq!(find_x("\n    \nX      "), (3, 1));
+    assert_eq!(find_x(" \n  \nX"), (3, 1));
+}
 
 #[test]
 fn test_line() {
@@ -51,6 +98,12 @@ fn test_divert() {
     //    divert_line().easy_parse("    -> yeah"),
     //    Ok((LineType::DIVERT(("yeah".to_string())), ""))
     //);
+
+    let text = "\n ===";
+    assert_eq!(
+        pointer_offset_to_row_col(divert_line().easy_parse(text).unwrap_err().position, text),
+        (2, 2)
+    );
 }
 
 #[test]
