@@ -165,6 +165,14 @@ fn test_choice() {
 }
 
 #[test]
+fn test_knot_title() {
+    assert_eq!(
+        knot_title().easy_parse(" === title1"),
+        Ok(("title1".to_string(), ""))
+    )
+}
+
+#[test]
 fn test_story() {
     assert_eq!(
         story().easy_parse(include_str!("../stories/two_knots.ink")),

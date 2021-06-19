@@ -22,6 +22,9 @@ use maplit::btreemap;
 use std::collections::BTreeMap;
 use std::unreachable;
 
+// TODO: get rid of line() and replace it with something more targetted for the different purposes
+// TODO: can I just delete all whitespace at the start of each line at the start? Or will that mess up with my indexing errors...?
+
 // TODO: get rid of trailing "==="s on knot titles
 // TODO: diverts should only parse one word, don't use "line()" for everything.
 // TODO: pass state along, so when parsing fails I can debug it.
