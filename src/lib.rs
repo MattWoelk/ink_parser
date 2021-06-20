@@ -10,6 +10,8 @@ use combine::parser::choice::choice;
 //use combine::parser::range::{recognize, take_while1};
 use combine::parser::repeat::{skip_until, take_until};
 //use combine::parser::sequence::skip;
+use combine::parser::range::range;
+use combine::parser::sequence::skip;
 use combine::{
     any, between, chainl1, look_ahead, none_of, not_followed_by, parser, satisfy, skip_count,
     EasyParser,
@@ -22,24 +24,18 @@ use maplit::btreemap;
 use std::collections::BTreeMap;
 use std::unreachable;
 
-// TODO: get rid of line() and replace it with something more targetted for the different purposes
-// TODO: - choices can contain lines of text, and then must have a divert
-// TODO: can I just delete all whitespace at the start of each line at the start? Or will that mess up with my indexing errors...?
-
 // TODO: deal with blank dialog lines, if needed.
 
 // TODO: get rid of trailing "==="s on knot titles
-// TODO: diverts should only parse one word, don't use "line()" for everything.
 // TODO: pass state along, so when parsing fails I can debug it.
+// TODO: variables, conditionals, etc.
 
 type KnotTitle = String;
 
-//type Divert = String;
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Divert {
     knot_title: KnotTitle,
 }
-//type Choice = (String, Option<Vec<String>>, Option<Divert>); // TODO: Should this middle one be a BTreeMap?
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Choice {
     text: String,
@@ -49,7 +45,7 @@ pub struct Choice {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum KnotEnding {
-    CHOICES(Vec<Choice>),
+    CHOICES(Vec<Choice>), // TODO: should this be a BTreeMap?
     DIVERT(Divert),
 }
 
@@ -58,8 +54,6 @@ pub struct Knot {
     title: String,
     dialog_lines: Vec<String>,
     ending: KnotEnding,
-    //choices: Vec<Choice>,   // TODO: this should be a BTreeMap?
-    //divert: Option<Divert>, // TODO: there is either choices OR a divert, right? Can we Enum this?
 }
 
 #[derive(Default, Debug, PartialEq, Eq, Clone)]
@@ -67,13 +61,12 @@ pub struct Story {
     knots: BTreeMap<KnotTitle, Knot>,
 }
 
-// TODO: variables, conditionals, etc.
-#[derive(Debug, PartialEq, Eq, Clone)]
-enum LineType {
-    // TODO: is this important? Can I just ... not have this?
-    TEXT(String),
-    DIVERT(Divert),
-    CHOICE(Choice),
+impl From<&str> for Divert {
+    fn from(s: &str) -> Self {
+        Divert {
+            knot_title: s.to_string(),
+        }
+    }
 }
 
 impl Default for Knot {
@@ -86,51 +79,39 @@ impl Default for Knot {
     }
 }
 
+/// grabs the rest of the line, and consumes any trailing newline marker
 fn rest_of_the_line<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
-    // TODO: this also consumes newlines at the end. Should it? Seems like a good thing for everything to do, but maybe that's a custom thing I can throw into .skip(x) everywhere
     many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
         .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
 }
 
-// TODO: try parsing choice, divert, etc. BEFORE parsing a line, so we don't need the followed_by things here
 fn dialog_line<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    rest_of_the_line()
-
-    // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
-    // TODO: this also consumes newlines at the end. Should it? Seems like a good thing for everything to do, but maybe that's a custom thing I can throw into .skip(x) everywhere
-    //many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-    //    .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
+    spaces().with(rest_of_the_line())
 }
-
-//fn line<Input>() -> impl Parser<Input, Output = String>
-//where
-//    Input: Stream<Token = char>,
-//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-//{
-//    not_followed_by(char('+').or(char('-')))
-//        .expected("wut?")
-//        .with(
-//            many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-//                .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
-//        )
-//}
 
 fn dialog_lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    // TODO: this needs to make sure each line is NOT a choice/divert/etc.
-    spaces().with(many1(dialog_line().skip(spaces()).map(|s| s.into())))
+    many1::<Vec<String>, _, _>(
+        spaces().with(
+            not_followed_by(string("->")) // TODO: I would love to put divert() right in here; not sure why I can't
+                .skip(not_followed_by(string("+")))
+                .with(dialog_line())
+                .skip(spaces()),
+        ),
+    )
+    .map(|s| s.into())
 }
 
 //fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
@@ -168,9 +149,6 @@ where
         //.skip(spaces())
         //.skip(many::<String, _, _>(char(' ')))
         .and(optional(dialog_lines()))
-        // TODO: can I inspect this? That would be helpful, to see if optional(dialog_lines()) is eating my input...
-        //       - but wait, dialog_lines WILL eat it up, because it doesn't care...
-        //         ... so we need to check if it's a divert FIRST and every time somehow ... hmm ...
         .and(divert())
         .map(|((title, lines), divert)| Choice {
             text: title,

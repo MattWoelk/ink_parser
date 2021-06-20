@@ -1,17 +1,32 @@
 #[cfg(test)]
 use crate::*;
+use combine::easy::Error;
+use combine::easy::Errors;
 #[cfg(test)]
 use combine::error::StringStreamError;
 use combine::stream::PointerOffset;
 #[cfg(test)]
 use pretty_assertions::{assert_eq, assert_ne};
 
-// TODO: use this to both make errors easier to read, and easier to test
+// TODO: use this to both make errors easier to read, and easier to test (and test that it works as it should...)
+//       BUT it seem like it's wrong, and the index will overflow...
+//       Could it be that the index is in bytes instead of ... other things?
 #[cfg(test)]
 fn pointer_offset_to_row_col(pointer_offset: PointerOffset<str>, text: &str) -> (usize, usize) {
     let index = pointer_offset.translate_position(text);
 
     index_to_row_col(index, text)
+}
+
+#[cfg(test)]
+fn map_combine_error<'a>(
+    errors: Errors<char, &'a str, PointerOffset<str>>,
+    text: &str,
+) -> ((usize, usize), Vec<Error<char, &'a str>>) {
+    (
+        pointer_offset_to_row_col(errors.position, text),
+        errors.errors,
+    )
 }
 
 #[cfg(test)]
@@ -21,11 +36,16 @@ fn index_to_row_col(index: usize, text: &str) -> (usize, usize) {
         return (0, 0); // TODO: should this return an error instead? or return (1,1)?
     }
 
-    //let text = &;
-    let last_newline = text[..index + 1].rfind('\n').unwrap_or(0);
-    let number_of_newlines = text[..index].chars().filter(|&c| c == '\n').count();
+    if index > text.len() - 1 {
+        return (0, 1); // TODO: an error instead?
+    }
 
     dbg!(index);
+
+    //let text = &;
+    let last_newline = text[0..index + 1].rfind('\n').unwrap_or(0);
+    let number_of_newlines = text[..index].chars().filter(|&c| c == '\n').count();
+
     dbg!(last_newline);
     dbg!(number_of_newlines);
 
@@ -41,6 +61,10 @@ fn text_index_to_row_col() {
         index_to_row_col(text.find('X').unwrap(), text)
     }
 
+    let a = vec![1, 2, 3];
+    //dbg!(&a[0..9]);
+    //unimplemented!();
+
     assert_eq!(find_x("X"), (1, 1));
     assert_eq!(find_x("     X      "), (1, 6));
     assert_eq!(find_x("     X\n     "), (1, 6));
@@ -54,6 +78,8 @@ fn text_index_to_row_col() {
 
 #[test]
 fn test_dialog_line() {
+    //color_backtrace::install();
+
     assert_eq!(
         dialog_line().easy_parse("no line endings"),
         Ok(("no line endings".to_string(), ""))
@@ -68,14 +94,11 @@ fn test_dialog_line() {
     );
     assert_eq!(
         dialog_line().easy_parse("          line starting with spaces\r\n"),
-        Ok(("          line starting with spaces".to_string(), ""))
+        Ok(("line starting with spaces".to_string(), ""))
     );
     assert_eq!(
         dialog_line().easy_parse("       \n \r\n   line starting with newlines and spaces\r\n"),
-        Ok((
-            "       ".to_string(),
-            " \r\n   line starting with newlines and spaces\r\n"
-        ))
+        Ok(("line starting with newlines and spaces".to_string(), ""))
     );
 }
 
@@ -110,6 +133,16 @@ fn test_divert() {
 
 #[test]
 fn test_choice() {
+    let text = "+ yeah\n-> divert";
+    //assert_eq!(
+    //    parse_choice()
+    //        .easy_parse(text)
+    //        .map_err(|e| map_combine_error(e, text))
+    //        .unwrap_err()
+    //        .0,
+    //    (0, 1) // TODO: this is wrong. The index is overflowing the text
+    //);
+
     assert_eq!(
         parse_choice().easy_parse("+ yeah\n-> divert"),
         Ok((
@@ -152,16 +185,6 @@ fn test_choice() {
         ))
     );
 
-    //assert_eq!(
-    //    lines().easy_parse("  one\ntwo\n   + paris"),
-    //    Ok((vec!["one".to_string(), "two".to_string(),], "+ paris"))
-    //);
-
-    //assert_eq!(
-    //    lines().easy_parse("  one\ntwo\n   -> paris"),
-    //    Ok((vec!["one".to_string(), "two".to_string(),], "-> paris"))
-    //);
-
     assert_eq!(
         parse_choice().easy_parse("+ yeah\n  one\ntwo\n   -> paris"),
         Ok((
@@ -177,179 +200,178 @@ fn test_choice() {
     );
 }
 
-//#[test]
-//fn test_knot_title() {
-//    assert_eq!(
-//        knot_title().easy_parse(" === title1"),
-//        Ok(("title1".to_string(), ""))
-//    )
-//}
-//
-//#[test]
-//fn test_story() {
-//    assert_eq!(
-//        story().easy_parse(include_str!("../stories/two_knots.ink")),
-//        Ok((
-//            Story {
-//                knots: btreemap! {
-//                    "INTRO".to_string() => Knot {
-//                        title: "INTRO".to_string(),
-//                        lines: vec![
-//                            "to paris".to_string()
-//                        ],
-//                        choices: vec![],
-//                        divert: Some("paris".to_string()),
-//                    },
-//                    "paris".to_string() => Knot {
-//                        title: "paris".to_string(),
-//                        lines: vec![
-//                            "We are in paris.".to_string()
-//                        ],
-//                        choices: vec![],
-//                        divert: Some("ending".to_string()),
-//                    },
-//                    "ending".to_string() => Knot {
-//                        title: "ending".to_string(),
-//                        lines: vec![
-//                            "THE END now.".to_string()
-//                        ],
-//                        choices: vec![],
-//                        divert: Some("END".to_string()),
-//                    },
-//                }
-//            },
-//            ""
-//        ))
-//    );
-//
-//    assert_eq!(
-//        story().easy_parse(include_str!("../stories/two_knots_with_choices.ink")),
-//        Ok((
-//            Story {
-//                knots: btreemap! {
-//                    "INTRO".to_string() => Knot {
-//                        title: "INTRO".to_string(),
-//                        lines: vec![
-//                            "to paris?".to_string()
-//                        ],
-//                        choices: vec![
-//                            ("yeah".to_string(), Some(vec!["yes, please".to_string()]), Some("paris".to_string())),
-//                            ("no".to_string(), Some(vec!["no, thank you".to_string()]), Some("ending".to_string())),
-//                        ],
-//                        divert: None,
-//                    },
-//                    "paris".to_string() => Knot {
-//                        title: "paris".to_string(),
-//                        lines: vec![
-//                            "We are in paris.".to_string()
-//                        ],
-//                        choices: vec![],
-//                        divert: Some("ending".to_string()),
-//                    },
-//                    "ending".to_string() => Knot {
-//                        title: "ending".to_string(),
-//                        lines: vec![
-//                            "THE END now.".to_string()
-//                        ],
-//                        choices: vec![],
-//                        divert: Some("END".to_string()),
-//                    },
-//                }
-//            },
-//            ""
-//        ))
-//    );
-//
-//    assert_eq!(
-//        story().easy_parse(include_str!("../stories/basic_story.ink")),
-//        Ok((
-//            Story {
-//                knots: btreemap! {
-//                    "INTRO".to_string() => Knot {
-//                        title: "INTRO".to_string(),
-//                        lines: vec![
-//                            "Want to go to paris?".to_string(),
-//                            "PLEASE!?".to_string(),
-//                            "will you?????????".to_string(),
-//                        ],
-//                        choices: vec![
-//                            (
-//                                "yeah!".to_string(),
-//                                None,
-//                                Some(
-//                                    "paris".to_string(),
-//                                ),
-//                            ),
-//                            (
-//                                "\"Around the world, Monsieur?\"".to_string(),
-//                                Some(
-//                                    vec![
-//                                        "I was utterly astonished.".to_string(),
-//                                        "\"You are in jest!\" I told him in dignified affront. THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG!".to_string(),
-//                                    ],
-//                                ),
-//                                Some(
-//                                    "ending".to_string(),
-//                                ),
-//                            ),
-//                        ],
-//                        divert: None,
-//                    },
-//                    "ending".to_string() => Knot {
-//                        title: "ending".to_string(),
-//                        lines: vec![
-//                            "THE END now.".to_string(),
-//                        ],
-//                        choices: vec![],
-//                        divert: Some(
-//                            "END".to_string(),
-//                        ),
-//                    },
-//                    "paris".to_string() => Knot {
-//                        title: "paris".to_string(),
-//                        lines: vec![
-//                            "We are in paris.".to_string(),
-//                        ],
-//                        choices: vec![],
-//                        divert: Some(
-//                            "ending".to_string(),
-//                        ),
-//                    },
-//                }
-//            },
-//            ""
-//        ))
-//    );
-//
-//    assert_eq!(
-//        story().easy_parse(include_str!("../stories/spaces_before_divert.ink")),
-//        Ok((
-//            Story {
-//                knots: btreemap! {
-//                    "INTRO".to_string() => Knot {
-//                        title: "INTRO".to_string(),
-//                        lines: vec![
-//                            "a thing".to_string()
-//                        ],
-//                        choices: vec![
-//                            (
-//                                "🙁".to_string(),
-//                                None,
-//                                Some("ending".to_string())
-//                            )
-//                        ],
-//                        divert: None
-//                    }
-//                }
-//            },
-//            ""
-//        ))
-//    );
-//
-//    // TODO: need to have "stitches" (sub knots) first
-//    //assert_eq!(
-//    //    story().easy_parse(include_str!("../stories/too_many_blank_lines.ink")),
-//    //    Ok((Story::default(), ""))
-//    //);
-//}
-//
+#[test]
+fn test_knot_title() {
+    assert_eq!(
+        knot_title().easy_parse(" === title1"),
+        Ok(("title1".to_string(), ""))
+    )
+}
+
+#[test]
+fn test_story() {
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/two_knots.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        dialog_lines: vec![
+                            "to paris".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT("paris".into()),
+                    },
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        dialog_lines: vec![
+                            "We are in paris.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "ending".into()
+                        ),
+                    },
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        dialog_lines: vec![
+                            "THE END now.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "END".into()
+                        )
+                    },
+                }
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/two_knots_with_choices.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        dialog_lines: vec![
+                            "to paris?".to_string()
+                        ],
+                        ending: KnotEnding::CHOICES(vec![
+                            Choice {
+                                text: "yeah".to_string(),
+                                dialog_lines: vec!["yes, please".to_string()],
+                                divert: "paris".into(),
+                            },
+                            Choice {
+                                text: "no".to_string(),
+                                dialog_lines: vec!["no, thank you".to_string()],
+                                divert: "ending".into(),
+                            }
+                        ]),
+                    },
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        dialog_lines: vec![
+                            "We are in paris.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "ending".into()
+                        ),
+                    },
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        dialog_lines: vec![
+                            "THE END now.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "END".into()
+                        )
+                    },
+                }
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/basic_story.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        dialog_lines: vec![
+                            "Want to go to paris?".to_string(),
+                            "PLEASE!?".to_string(),
+                            "will you?????????".to_string(),
+                        ],
+                        ending: KnotEnding::CHOICES(vec![
+                            Choice {
+                                text: "yeah!".to_string(),
+                                dialog_lines: vec![],
+                                divert: "paris".into(),
+                            },
+                            Choice {
+                                text: "\"Around the world, Monsieur?\"".to_string(),
+                                dialog_lines: vec![
+                                    "I was utterly astonished.".to_string(),
+                                    "\"You are in jest!\" I told him in dignified affront. THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG!".to_string(),
+                                ],
+                                divert: "ending".into(),
+                            },
+                        ]),
+                    },
+                    "paris".to_string() => Knot {
+                        title: "paris".to_string(),
+                        dialog_lines: vec![
+                            "We are in paris.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "ending".into()
+                        ),
+                    },
+                    "ending".to_string() => Knot {
+                        title: "ending".to_string(),
+                        dialog_lines: vec![
+                            "THE END now.".to_string()
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "END".into()
+                        )
+                    },
+                }
+            },
+            ""
+        ))
+    );
+
+    //assert_eq!(
+    //    story().easy_parse(include_str!("../stories/spaces_before_divert.ink")),
+    //    Ok((
+    //        Story {
+    //            knots: btreemap! {
+    //                "INTRO".to_string() => Knot {
+    //                    title: "INTRO".to_string(),
+    //                    dialog_lines: vec![
+    //                        "a thing".to_string()
+    //                    ],
+    //                    ending: KnotEnding::CHOICES(vec![
+    //                        Choice {
+    //                            text: "🙁".to_string(),
+    //                            dialog_lines: vec![],
+    //                            divert: "ending".into(),
+    //                        }
+    //                    ]),
+    //                }
+    //            }
+    //        },
+    //        ""
+    //    ))
+    //);
+
+    // TODO: need to have "stitches" (sub knots) first
+    //assert_eq!(
+    //    story().easy_parse(include_str!("../stories/too_many_blank_lines.ink")),
+    //    Ok((Story::default(), ""))
+    //);
+}

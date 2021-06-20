@@ -10,3 +10,6 @@ edition = "2018"
 combine = "4"
 pretty_assertions = "0.7"
 maplit = "1.0"
+
+[dev-dependencies]
+color-backtrace = "0.5.1"
