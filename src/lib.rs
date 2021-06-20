@@ -5,11 +5,13 @@ mod tests;
 
 use combine::parser::char::{char, spaces, string};
 use combine::parser::choice::choice;
-use combine::{many, many1, optional, ParseError, Parser, RangeStream, Stream};
+use combine::parser::repeat::take_until;
+use combine::{attempt, many, many1, optional, value, ParseError, Parser, RangeStream, Stream};
 use combine::{not_followed_by, satisfy, EasyParser};
 use std::collections::BTreeMap;
 
-// TODO: deal with blank dialog lines, if needed.
+// TODO: get rid of comments, using a nice function that I can use everywhere
+//       - maybe rest_of_the_line can absorb comments, and that's good enough?
 
 // TODO: get rid of trailing "==="s on knot titles
 // TODO: pass state along, so when parsing fails I can debug it.
@@ -75,12 +77,57 @@ where
         .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
 }
 
+fn single_line_comment<Input>() -> impl Parser<Input, Output = ()>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    attempt(string("//"))
+        .with(rest_of_the_line())
+        .with(value(()))
+}
+
+fn multi_line_comment<Input>() -> impl Parser<Input, Output = ()>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    attempt(string("/*"))
+        .with(take_until::<String, _, _>(string("*/")))
+        .with(string("*/"))
+        .with(value(()))
+}
+
+/// grabs the rest of the line, and consumes any trailing newline marker
+fn rest_of_the_line_ignoring_comments<Input>() -> impl Parser<Input, Output = String>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
+    //take_until::<String, _, _>(attempt(choice((
+    //    string("\n"),
+    //    string("\r"),
+    //    string("//"),
+    //    string("/*"),
+    //))))
+    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r' && c != '/'))
+        // TODO: this needs to be "//", not just a single slash, or that's going to cause prooooooblems...
+        //.skip(spaces())
+        .skip(optional(single_line_comment()))
+        // TODO: need attempt() so it doesn't consume anything?
+        .skip(optional(multi_line_comment()))
+        //.skip(optional(char('\n').or(char('\r').skip(char('\n')))))
+        .skip(optional(choice((string("\n"), string("\r\n")))))
+        .map(|s| s.trim_end().into())
+}
+
 fn dialog_line<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    spaces().with(rest_of_the_line())
+    spaces().with(rest_of_the_line_ignoring_comments())
 }
 
 /// Must call spaces() before calling this,
@@ -91,11 +138,15 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     many1::<Vec<String>, _, _>(
-        //spaces().with( // TODO: I would love to have this here, but it consumes input, so we can't have dialog_lines() be optional()
-        not_followed_by(string("->")) // TODO: I would love to put divert() right in here; not sure why I can't
+        //attempt(spaces()).with(
+        // TODO: I would love to have this here, but it consumes input,
+        //                        so we can't have dialog_lines() be optional()
+        not_followed_by(string("->"))
+            // TODO: I would love to put divert() right in here; not sure why I can't
             .skip(not_followed_by(string("+")))
             .with(dialog_line())
             .skip(spaces()),
+        //),
     )
 }
 

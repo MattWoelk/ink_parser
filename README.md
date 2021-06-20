@@ -1,3 +1,5 @@
+// TODO: sort these by priority, and split them into version numbers
+
 supported [features](https://github.com/inkle/ink/blob/master/Documentation/WritingWithInk.md):
 - [x] content
 - [ ] comments
@@ -8,7 +10,7 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [x] knots
 - [ ] knot titles with trailing ='s
 - [x] diverts
-- [ ] choices, content, diverts on the same line
+- [ ] choices, content, and diverts on the same line
 - [ ] glue (though maybe this is more part of the story runner?)
 - [ ] stitches
 - [ ] local diverts

@@ -406,3 +406,127 @@ fn test_story() {
     //    Ok((Story::default(), ""))
     //);
 }
+
+#[test]
+fn test_comments() {
+    assert_eq!(
+        multi_line_comment().easy_parse("/* comment */"),
+        Ok(((), ""))
+    );
+
+    assert_eq!(
+        multi_line_comment().easy_parse("/*\n comment \n*/"),
+        Ok(((), ""))
+    );
+
+    assert_eq!(
+        single_line_comment().easy_parse("//cool\n text \n"),
+        Ok(((), " text \n"))
+    );
+
+    assert_eq!(
+        rest_of_the_line_ignoring_comments().easy_parse("text // comment"),
+        Ok(("text".into(), ""))
+    );
+
+    assert_eq!(
+        rest_of_the_line_ignoring_comments().easy_parse("text /* comment */"),
+        Ok(("text".into(), ""))
+    );
+
+    assert_eq!(
+        dialog_lines().easy_parse("text /* comment\n */\ncool // comment 2\n yeah"),
+        Ok((vec!["text".into(), "cool".into(), "yeah".into()], ""))
+    );
+
+    assert_eq!(
+        dialog_lines().easy_parse("text /* comment\n */\ncool // comment 2\n yeah"),
+        Ok((vec!["text".into(), "cool".into(), "yeah".into()], ""))
+    );
+
+    assert_eq!(
+        knot_without_title().easy_parse(
+            "dialog 1
+// comment 1
+dialog 2
+/*
+    comment 2
+*/
+dialog 3 // comment 3
+dialog /* comment 4 */4"
+        ),
+        Ok((
+            Knot {
+                title: "INTRO".to_string(),
+                dialog_lines: vec![
+                    "dialog 1".into(),
+                    "dialog 2".into(),
+                    "dialog 3".into(),
+                    "dialog 4".into()
+                ],
+                ending: KnotEnding::DIVERT("END".into())
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        knot_without_title().easy_parse(
+            "dialog 1
+// comment 1
+dialog 2
+/*
+    comment 2
+*/
+dialog 3 // comment 3
+dialog /* comment 4 */4
+-> END"
+        ),
+        Ok((
+            Knot {
+                title: "INTRO".to_string(),
+                dialog_lines: vec![
+                    "dialog 1".into(),
+                    "dialog 2".into(),
+                    "dialog 3".into(),
+                    "dialog 4".into()
+                ],
+                ending: KnotEnding::DIVERT("END".into())
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        story().easy_parse(
+            "dialog 1
+// comment 1
+dialog 2
+/*
+    comment 2
+*/
+dialog 3 // comment 3
+dialog /* comment 4 */4
+-> END"
+        ),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        dialog_lines: vec![
+                            "dialog 1".to_string(),
+                            "dialog 2".to_string(),
+                            "dialog 3".to_string(),
+                            "dialog 4".to_string(),
+                        ],
+                        ending: KnotEnding::DIVERT(
+                            "END".into()
+                        ),
+                    }
+                }
+            },
+            ""
+        ))
+    );
+}
