@@ -1,28 +1,13 @@
 #![warn(rust_2018_idioms)]
-#![allow(unused)]
+//#![allow(unused)]
 
 mod tests;
 
-use combine::parser::char::{char, digit, spaces, string};
-//use combine::parser::char::{crlf, newline};
-//use combine::parser::choice::{choice, or};
+use combine::parser::char::{char, spaces, string};
 use combine::parser::choice::choice;
-//use combine::parser::range::{recognize, take_while1};
-use combine::parser::repeat::{skip_until, take_until};
-//use combine::parser::sequence::skip;
-use combine::parser::range::range;
-use combine::parser::sequence::skip;
-use combine::{
-    any, between, chainl1, look_ahead, none_of, not_followed_by, parser, satisfy, skip_count,
-    EasyParser,
-};
-use combine::{
-    attempt, eof, many, many1, optional, sep_by, sep_by1, skip_many1, token, ParseError, Parser,
-    RangeStream, Stream,
-};
-use maplit::btreemap;
+use combine::{many, many1, optional, ParseError, Parser, RangeStream, Stream};
+use combine::{not_followed_by, satisfy, EasyParser};
 use std::collections::BTreeMap;
-use std::unreachable;
 
 // TODO: deal with blank dialog lines, if needed.
 
@@ -98,20 +83,20 @@ where
     spaces().with(rest_of_the_line())
 }
 
+/// Must call spaces() before calling this,
+/// because we can't make it optional() if spaces() consumes input
 fn dialog_lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     many1::<Vec<String>, _, _>(
-        spaces().with(
-            not_followed_by(string("->")) // TODO: I would love to put divert() right in here; not sure why I can't
-                .skip(not_followed_by(string("+")))
-                .with(dialog_line())
-                .skip(spaces()),
-        ),
+        //spaces().with( // TODO: I would love to have this here, but it consumes input, so we can't have dialog_lines() be optional()
+        not_followed_by(string("->")) // TODO: I would love to put divert() right in here; not sure why I can't
+            .skip(not_followed_by(string("+")))
+            .with(dialog_line())
+            .skip(spaces()),
     )
-    .map(|s| s.into())
 }
 
 //fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
@@ -127,12 +112,9 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many::<String, _, _>(char(' ')).with(
-        // <----- this is what is expected, somehow...
-        //spaces().with(
+    spaces().with(
         string("->")
-            //.skip(spaces())
-            .and(many::<String, _, _>(char(' '))) // TODO: should this be spaces()?
+            .skip(spaces())
             .with(rest_of_the_line())
             .map(|s| Divert { knot_title: s }),
     )
@@ -144,15 +126,14 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     char('+')
-        .skip(many::<String, _, _>(char(' '))) // TODO: should this be spaces()?
+        .skip(spaces())
         .with(rest_of_the_line())
-        //.skip(spaces())
-        //.skip(many::<String, _, _>(char(' ')))
+        .skip(spaces())
         .and(optional(dialog_lines()))
         .and(divert())
         .map(|((title, lines), divert)| Choice {
             text: title,
-            dialog_lines: lines.unwrap_or(vec![]),
+            dialog_lines: lines.unwrap_or_default(),
             divert,
         })
 }
@@ -191,7 +172,7 @@ where
         .and(knot_end())
         .map(|(lines, ending)| Knot {
             title: "INTRO".to_string(),
-            dialog_lines: lines.unwrap_or(vec![]),
+            dialog_lines: lines.unwrap_or_default(),
             ending,
         })
 }
@@ -219,8 +200,7 @@ where
 {
     knot_without_title().and(many(knot())).map(
         |(intro_knot, mut other_knots): (Knot, Vec<Knot>)| {
-            let mut knots: Vec<Knot> = vec![];
-            knots.push(intro_knot);
+            let mut knots: Vec<Knot> = vec![intro_knot];
             knots.append(other_knots.as_mut());
             Story {
                 knots: knots
@@ -234,47 +214,4 @@ where
 
 pub fn parse_story(text: &str) -> Story {
     story().easy_parse(text).unwrap().0
-}
-
-#[derive(PartialEq, Debug)]
-pub struct Date {
-    pub year: i32,
-    pub month: i32,
-    pub day: i32,
-}
-
-fn two_digits<Input>() -> impl Parser<Input, Output = i32>
-where
-    Input: Stream<Token = char>,
-    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-{
-    (digit(), digit()).map(|(x, y): (char, char)| {
-        let x = x.to_digit(10).expect("digit");
-        let y = y.to_digit(10).expect("digit");
-        (x * 10 + y) as i32
-    })
-}
-
-/// Parses a date
-/// 2010-01-30
-fn date<'a, Input>() -> impl Parser<Input, Output = Date>
-where
-    Input: RangeStream<Token = char, Range = &'a str>,
-    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-{
-    (
-        many::<String, _, _>(digit()),
-        char('-'),
-        two_digits(),
-        char('-'),
-        two_digits(),
-    )
-        .map(|(year, _, month, _, day)| {
-            // Its ok to just unwrap since we only parsed digits
-            Date {
-                year: year.parse().unwrap(),
-                month,
-                day,
-            }
-        })
 }

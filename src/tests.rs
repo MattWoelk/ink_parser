@@ -1,12 +1,15 @@
 #[cfg(test)]
 use crate::*;
+#[cfg(test)]
 use combine::easy::Error;
+#[cfg(test)]
 use combine::easy::Errors;
 #[cfg(test)]
-use combine::error::StringStreamError;
 use combine::stream::PointerOffset;
 #[cfg(test)]
-use pretty_assertions::{assert_eq, assert_ne};
+use maplit::btreemap;
+#[cfg(test)]
+use pretty_assertions::assert_eq;
 
 // TODO: use this to both make errors easier to read, and easier to test (and test that it works as it should...)
 //       BUT it seem like it's wrong, and the index will overflow...
@@ -60,10 +63,6 @@ fn text_index_to_row_col() {
     fn find_x(text: &str) -> (usize, usize) {
         index_to_row_col(text.find('X').unwrap(), text)
     }
-
-    let a = vec![1, 2, 3];
-    //dbg!(&a[0..9]);
-    //unimplemented!();
 
     assert_eq!(find_x("X"), (1, 1));
     assert_eq!(find_x("     X      "), (1, 6));
@@ -133,18 +132,32 @@ fn test_divert() {
 
 #[test]
 fn test_choice() {
-    let text = "+ yeah\n-> divert";
-    //assert_eq!(
-    //    parse_choice()
-    //        .easy_parse(text)
-    //        .map_err(|e| map_combine_error(e, text))
-    //        .unwrap_err()
-    //        .0,
-    //    (0, 1) // TODO: this is wrong. The index is overflowing the text
-    //);
+    let text = "-> divert";
+    assert_eq!(
+        parse_choice()
+            .easy_parse(text)
+            .map_err(|e| map_combine_error(e, text))
+            .unwrap_err()
+            .0,
+        (1, 1)
+    );
 
     assert_eq!(
         parse_choice().easy_parse("+ yeah\n-> divert"),
+        Ok((
+            Choice {
+                text: "yeah".to_string(),
+                dialog_lines: vec![],
+                divert: Divert {
+                    knot_title: "divert".to_string()
+                }
+            },
+            ""
+        ))
+    );
+
+    assert_eq!(
+        parse_choice().easy_parse("+ yeah\n   -> divert"),
         Ok((
             Choice {
                 text: "yeah".to_string(),
@@ -187,6 +200,21 @@ fn test_choice() {
 
     assert_eq!(
         parse_choice().easy_parse("+ yeah\n  one\ntwo\n   -> paris"),
+        Ok((
+            Choice {
+                text: "yeah".to_string(),
+                dialog_lines: vec!["one".to_string(), "two".to_string()],
+                divert: Divert {
+                    knot_title: "paris".to_string()
+                }
+            },
+            ""
+        ))
+    );
+
+    // consume and ignore empty dialog lines
+    assert_eq!(
+        parse_choice().easy_parse("+ yeah\n  \n  one\n   \ntwo\n   -> paris"),
         Ok((
             Choice {
                 text: "yeah".to_string(),
@@ -315,7 +343,10 @@ fn test_story() {
                                 text: "\"Around the world, Monsieur?\"".to_string(),
                                 dialog_lines: vec![
                                     "I was utterly astonished.".to_string(),
-                                    "\"You are in jest!\" I told him in dignified affront. THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOONG!".to_string(),
+                                    concat!("\"You are in jest!\" I told him in dignified affront. ",
+                                        "THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOO",
+                                        "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",
+                                        "OOOOOOOOOOOOOOOOOOOOOOOONG!").to_string(),
                                 ],
                                 divert: "ending".into(),
                             },
@@ -345,29 +376,29 @@ fn test_story() {
         ))
     );
 
-    //assert_eq!(
-    //    story().easy_parse(include_str!("../stories/spaces_before_divert.ink")),
-    //    Ok((
-    //        Story {
-    //            knots: btreemap! {
-    //                "INTRO".to_string() => Knot {
-    //                    title: "INTRO".to_string(),
-    //                    dialog_lines: vec![
-    //                        "a thing".to_string()
-    //                    ],
-    //                    ending: KnotEnding::CHOICES(vec![
-    //                        Choice {
-    //                            text: "🙁".to_string(),
-    //                            dialog_lines: vec![],
-    //                            divert: "ending".into(),
-    //                        }
-    //                    ]),
-    //                }
-    //            }
-    //        },
-    //        ""
-    //    ))
-    //);
+    assert_eq!(
+        story().easy_parse(include_str!("../stories/spaces_before_divert.ink")),
+        Ok((
+            Story {
+                knots: btreemap! {
+                    "INTRO".to_string() => Knot {
+                        title: "INTRO".to_string(),
+                        dialog_lines: vec![
+                            "a thing".to_string()
+                        ],
+                        ending: KnotEnding::CHOICES(vec![
+                            Choice {
+                                text: "🙁".to_string(),
+                                dialog_lines: vec![],
+                                divert: "ending".into(),
+                            }
+                        ]),
+                    }
+                }
+            },
+            ""
+        ))
+    );
 
     // TODO: need to have "stitches" (sub knots) first
     //assert_eq!(
