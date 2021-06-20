@@ -99,14 +99,6 @@ where
     )
 }
 
-//fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
-//where
-//    Input: RangeStream<Token = char, Range = &'a str>,
-//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-//{
-//    spaces().with(many1(line().skip(spaces()).map(|s| s.into())))
-//}
-
 fn divert<'a, Input>() -> impl Parser<Input, Output = Divert>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
