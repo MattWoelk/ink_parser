@@ -23,112 +23,160 @@ use std::collections::BTreeMap;
 use std::unreachable;
 
 // TODO: get rid of line() and replace it with something more targetted for the different purposes
+// TODO: - choices can contain lines of text, and then must have a divert
 // TODO: can I just delete all whitespace at the start of each line at the start? Or will that mess up with my indexing errors...?
+
+// TODO: deal with blank dialog lines, if needed.
 
 // TODO: get rid of trailing "==="s on knot titles
 // TODO: diverts should only parse one word, don't use "line()" for everything.
 // TODO: pass state along, so when parsing fails I can debug it.
 
+type KnotTitle = String;
+
+//type Divert = String;
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Divert {
+    knot_title: KnotTitle,
+}
+//type Choice = (String, Option<Vec<String>>, Option<Divert>); // TODO: Should this middle one be a BTreeMap?
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Choice {
+    text: String,
+    dialog_lines: Vec<String>,
+    divert: Divert,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum KnotEnding {
+    CHOICES(Vec<Choice>),
+    DIVERT(Divert),
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Knot {
     title: String,
-    lines: Vec<String>,
-    choices: Vec<Choice>, // TODO: Should this be a BTreeMap?
-    divert: Option<Divert>,
+    dialog_lines: Vec<String>,
+    ending: KnotEnding,
+    //choices: Vec<Choice>,   // TODO: this should be a BTreeMap?
+    //divert: Option<Divert>, // TODO: there is either choices OR a divert, right? Can we Enum this?
+}
+
+#[derive(Default, Debug, PartialEq, Eq, Clone)]
+pub struct Story {
+    knots: BTreeMap<KnotTitle, Knot>,
+}
+
+// TODO: variables, conditionals, etc.
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum LineType {
+    // TODO: is this important? Can I just ... not have this?
+    TEXT(String),
+    DIVERT(Divert),
+    CHOICE(Choice),
 }
 
 impl Default for Knot {
     fn default() -> Self {
         Knot {
             title: "".to_string(),
-            lines: vec![],
-            choices: vec![],
-            divert: None,
+            dialog_lines: vec![],
+            ending: KnotEnding::CHOICES(vec![]),
         }
     }
 }
 
-type KnotTitle = String;
-#[derive(Default, Debug, PartialEq, Eq, Clone)]
-pub struct Story {
-    knots: BTreeMap<KnotTitle, Knot>,
-}
-
-fn line<Input>() -> impl Parser<Input, Output = String>
+fn rest_of_the_line<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    not_followed_by(char('+').or(char('-')))
-        .expected("wut?")
-        .with(
-            many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-                .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
-        )
+    // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
+    // TODO: this also consumes newlines at the end. Should it? Seems like a good thing for everything to do, but maybe that's a custom thing I can throw into .skip(x) everywhere
+    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+        .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
 }
 
-fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
+// TODO: try parsing choice, divert, etc. BEFORE parsing a line, so we don't need the followed_by things here
+fn dialog_line<Input>() -> impl Parser<Input, Output = String>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    rest_of_the_line()
+
+    // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
+    // TODO: this also consumes newlines at the end. Should it? Seems like a good thing for everything to do, but maybe that's a custom thing I can throw into .skip(x) everywhere
+    //many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+    //    .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
+}
+
+//fn line<Input>() -> impl Parser<Input, Output = String>
+//where
+//    Input: Stream<Token = char>,
+//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+//{
+//    not_followed_by(char('+').or(char('-')))
+//        .expected("wut?")
+//        .with(
+//            many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
+//                .skip(optional(char('\n').or(char('\r').skip(char('\n'))))),
+//        )
+//}
+
+fn dialog_lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    spaces().with(many1(line().skip(spaces()).map(|s| s.into())))
+    // TODO: this needs to make sure each line is NOT a choice/divert/etc.
+    spaces().with(many1(dialog_line().skip(spaces()).map(|s| s.into())))
 }
 
-type Divert = String;
-type Choice = (String, Option<Vec<String>>, Option<Divert>); // TODO: Should this middle one be a BTreeMap?
+//fn lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
+//where
+//    Input: RangeStream<Token = char, Range = &'a str>,
+//    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+//{
+//    spaces().with(many1(line().skip(spaces()).map(|s| s.into())))
+//}
 
-// TODO: variables, conditionals, etc.
-#[derive(Debug, PartialEq, Eq, Clone)]
-enum LineType {
-    TEXT(String),
-    DIVERT(Divert),
-    CHOICE(Choice),
-}
-
-fn divert_line<'a, Input>() -> impl Parser<Input, Output = Divert>
+fn divert<'a, Input>() -> impl Parser<Input, Output = Divert>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    string("->")
-        .and(many::<String, _, _>(char(' ')))
-        .with(line())
+    many::<String, _, _>(char(' ')).with(
+        // <----- this is what is expected, somehow...
+        //spaces().with(
+        string("->")
+            //.skip(spaces())
+            .and(many::<String, _, _>(char(' '))) // TODO: should this be spaces()?
+            .with(rest_of_the_line())
+            .map(|s| Divert { knot_title: s }),
+    )
 }
 
-fn choice_lines<'a, Input>() -> impl Parser<Input, Output = Choice>
+fn parse_choice<'a, Input>() -> impl Parser<Input, Output = Choice>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     char('+')
-        .and(many::<String, _, _>(char(' ')))
-        .with(line())
-        .skip(spaces())
-        .and(optional(lines()))
-        .and(optional(divert_line().map(LineType::DIVERT)))
-        .map(|((title, lines), divert)| {
-            (
-                title,
-                lines,
-                divert.map(|divert| match divert {
-                    LineType::DIVERT(text) => text,
-                    _ => "".to_string(),
-                }),
-            )
+        .skip(many::<String, _, _>(char(' '))) // TODO: should this be spaces()?
+        .with(rest_of_the_line())
+        //.skip(spaces())
+        //.skip(many::<String, _, _>(char(' ')))
+        .and(optional(dialog_lines()))
+        // TODO: can I inspect this? That would be helpful, to see if optional(dialog_lines()) is eating my input...
+        //       - but wait, dialog_lines WILL eat it up, because it doesn't care...
+        //         ... so we need to check if it's a divert FIRST and every time somehow ... hmm ...
+        .and(divert())
+        .map(|((title, lines), divert)| Choice {
+            text: title,
+            dialog_lines: lines.unwrap_or(vec![]),
+            divert,
         })
-}
-
-fn knot_body_lines<'a, Input>() -> impl Parser<Input, Output = Vec<LineType>>
-where
-    Input: RangeStream<Token = char, Range = &'a str>,
-    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
-{
-    many1::<Vec<LineType>, _, _>(choice((
-        divert_line().map(LineType::DIVERT),
-        choice_lines().map(LineType::CHOICE),
-        line().map(LineType::TEXT),
-    )))
 }
 
 fn knot_title<'a, Input>() -> impl Parser<Input, Output = String>
@@ -140,23 +188,19 @@ where
         string("==")
             .skip(many::<String, _, _>(char('=')))
             .skip(spaces())
-            .with(line()),
+            .with(rest_of_the_line()),
     )
 }
 
-fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
+fn knot_end<'a, Input>() -> impl Parser<Input, Output = KnotEnding>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    knot_title()
-        .and(knot_without_title())
-        .map(|(knot_title, knot)| Knot {
-            title: knot_title,
-            lines: knot.lines,
-            choices: knot.choices,
-            divert: knot.divert,
-        })
+    spaces().with(choice((
+        (many1::<Vec<Choice>, _, _>(parse_choice()).map(KnotEnding::CHOICES)),
+        divert().map(KnotEnding::DIVERT),
+    )))
 }
 
 fn knot_without_title<'a, Input>() -> impl Parser<Input, Output = Knot>
@@ -165,21 +209,29 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     spaces()
-        .with(optional(lines()))
-        .and(optional(many::<Vec<Choice>, _, _>(choice_lines())))
-        .and(optional(divert_line()))
-        .map(|((lines, choices), divert)| Knot {
+        .with(optional(dialog_lines()))
+        .and(knot_end())
+        .map(|(lines, ending)| Knot {
             title: "INTRO".to_string(),
-            lines: match lines {
-                Some(lines) => lines,
-                None => vec![],
-            },
-            choices: match choices {
-                Some(choices) => choices,
-                None => vec![],
-            },
-            divert: divert,
+            dialog_lines: lines.unwrap_or(vec![]),
+            ending,
         })
+}
+
+fn knot<'a, Input>() -> impl Parser<Input, Output = Knot>
+where
+    Input: RangeStream<Token = char, Range = &'a str>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    spaces().with(
+        knot_title()
+            .and(knot_without_title())
+            .map(|(knot_title, knot)| Knot {
+                title: knot_title,
+                dialog_lines: knot.dialog_lines,
+                ending: knot.ending,
+            }),
+    )
 }
 
 fn story<'a, Input>() -> impl Parser<Input, Output = Story>
