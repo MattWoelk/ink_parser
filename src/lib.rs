@@ -99,6 +99,7 @@ where
 }
 
 /// grabs the rest of the line, and consumes any trailing newline marker
+// TODO: this needs to ignore in-line comments as well, which there may be many of
 fn rest_of_the_line_ignoring_comments<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
@@ -111,13 +112,14 @@ where
     //    string("//"),
     //    string("/*"),
     //))))
+
+    // TODO: this needs to ignore inline comments. :/
+    //       maybe we call this a bunch of times, then flatten the resulting Strings?
+    //       ... though having a newline within the multi_line_comment seems to break things ... which is unexpected ...
     many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r' && c != '/'))
         // TODO: this needs to be "//", not just a single slash, or that's going to cause prooooooblems...
-        //.skip(spaces())
         .skip(optional(single_line_comment()))
-        // TODO: need attempt() so it doesn't consume anything?
         .skip(optional(multi_line_comment()))
-        //.skip(optional(char('\n').or(char('\r').skip(char('\n')))))
         .skip(optional(choice((string("\n"), string("\r\n")))))
         .map(|s| s.trim_end().into())
 }
@@ -142,9 +144,13 @@ where
         // TODO: I would love to have this here, but it consumes input,
         //                        so we can't have dialog_lines() be optional()
         not_followed_by(string("->"))
+            .skip(optional(single_line_comment()))
+            .skip(optional(multi_line_comment()))
             // TODO: I would love to put divert() right in here; not sure why I can't
             .skip(not_followed_by(string("+")))
             .with(dialog_line())
+            .skip(optional(single_line_comment()))
+            .skip(optional(multi_line_comment()))
             .skip(spaces()),
         //),
     )
