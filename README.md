@@ -13,7 +13,7 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [x] sticky choices as special (+)
 - [ ] choices (*)
 - [x] knots
-- [ ] knot titles with trailing ='s
+- [x] knot titles with trailing ='s
 - [x] diverts
 - [ ] choices, content, and diverts on the same line
 - [ ] stitches
