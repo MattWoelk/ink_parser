@@ -1,6 +1,7 @@
-// TODO: sort these by priority, and split them into version numbers
-
 supported [features](https://github.com/inkle/ink/blob/master/Documentation/WritingWithInk.md):
+
+## v0.1
+
 - [x] content
 - [ ] comments
 - [ ] tags
@@ -15,15 +16,22 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [ ] knot titles with trailing ='s
 - [x] diverts
 - [ ] choices, content, and diverts on the same line
-- [ ] glue (though maybe this is more part of the story runner?)
 - [ ] stitches
 - [ ] local diverts
-- [ ] includes
 - [ ] fallback choice (choice without choice text)
+
+## v0.2
 - [ ] conditional choices `{}`
 - [ ] logical operators AND `&&`, OR `||`, and NOT `not`
 - [ ] not as exclamation point: `!`
 - [ ] integer comparison checks `{seen_clue > 3}`
+- [ ] conditional text `{variable: text if true|text if false}`
+- [ ] global variables `VAR`
+- [ ] numerical maths and logic `~ x = (x*x) - (y*y)`
+
+## v0.3
+- [ ] glue (though maybe this is more part of the story runner?)
+- [ ] includes
 - [ ] alternatives: sequences `|`
 - [ ] alternatives: cycles `&`
 - [ ] alternatives: once-only `!`
@@ -33,21 +41,13 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [ ] alternatives: divert statements
 - [ ] alternatives: inside choice text
 - [ ] alternatives: escaping `{` with backslash
-- [ ] conditional text `{variable: text if true|text if false}`
 - [ ] CHOICE_COUNT()
 - [ ] TURNS()
 - [ ] TURNS_SINCE()
 - [ ] SEED_RANDOM()
-- [ ] Weave: gathers
-- [ ] Weave: nested flow
-- [ ] Weave: nested gather points
-- [ ] Weave: labelled gather points and options `- (label)`
-- [ ] Weave: scope
-- [ ] global variables `VAR`
 - [ ] storing diverts as variables
 - [ ] printing variables
 - [ ] evaluating strings
-- [ ] numerical maths and logic `~ x = (x*x) - (y*y)`
 - [ ] RANDOM()
 - [ ] INT() FLOOR() FLOAT()
 - [ ] string comparison `==`, `!=`, `?`
@@ -55,8 +55,16 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [ ] switch blocks
 - [ ] temporary variables
 - [ ] knot and stitch parameters
+
+## v0.4
+
 - [ ] functions
 - [ ] global constants
 - [ ] tunnels
 - [ ] threads
 - [ ] lists (TODO: split this into sub-sections)
+- [ ] Weave: gathers
+- [ ] Weave: nested flow
+- [ ] Weave: nested gather points
+- [ ] Weave: labelled gather points and options `- (label)`
+- [ ] Weave: scope
