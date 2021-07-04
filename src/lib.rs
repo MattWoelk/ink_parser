@@ -82,6 +82,14 @@ impl From<&str> for DialogLine {
     }
 }
 
+fn newline_character<Input>() -> impl Parser<Input, Output = ()>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
+    char('\n').or(char('\r').skip(char('\n'))).map(|_| ())
+}
+
 /// grabs the rest of the line, and consumes any trailing newline marker
 fn rest_of_the_line<Input>() -> impl Parser<Input, Output = String>
 where
@@ -89,8 +97,8 @@ where
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
     // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
-    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r'))
-        .skip(optional(char('\n').or(char('\r').skip(char('\n')))))
+    //       - maybe like we do in tag()?
+    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r')).skip(optional(newline_character()))
 }
 
 fn single_line_comment<Input>() -> impl Parser<Input, Output = ()>
@@ -223,7 +231,17 @@ where
         string("==")
             .skip(many::<String, _, _>(char('=')))
             .skip(spaces())
-            .with(rest_of_the_line()),
+            .with(many1::<String, _, _>(satisfy(|c| {
+                c != '\n' && c != '\r' && c != ' '
+            })))
+            .skip(optional(char(' ').and(string("==").skip(many::<
+                String,
+                _,
+                _,
+            >(
+                char('=')
+            )))))
+            .skip(newline_character()),
     )
 }
 

@@ -263,14 +263,6 @@ fn test_choice() {
 }
 
 #[test]
-fn test_knot_title() {
-    assert_eq!(
-        knot_title().easy_parse(" === title1"),
-        Ok(("title1".to_string(), ""))
-    )
-}
-
-#[test]
 fn test_story() {
     assert_eq!(
         story().easy_parse(include_str!("../stories/two_knots.ink")),
@@ -580,6 +572,30 @@ fn test_comments() {
     ////            ""
     ////        ))
     ////    );
+}
+
+#[test]
+fn test_knot() {
+    assert_eq!(
+        knot_title().easy_parse(" === title1\nthing\n"),
+        Ok(("title1".to_string(), "thing\n"))
+    );
+
+    assert!(knot_title()
+        .easy_parse("=== Knot name has spaces\n")
+        .is_err());
+
+    assert!(knot_title().easy_parse("=== Knot =\n").is_err());
+
+    assert_eq!(
+        knot_title().easy_parse("=== Knot\nbody\n"),
+        Ok(("Knot".into(), "body\n"))
+    );
+
+    assert_eq!(
+        knot_title().easy_parse("=== Knot ===\nbody\n"),
+        Ok(("Knot".into(), "body\n"))
+    );
 }
 
 #[test]
