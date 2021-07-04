@@ -81,23 +81,57 @@ fn test_dialog_line() {
 
     assert_eq!(
         dialog_line().easy_parse("no line endings"),
-        Ok(("no line endings".to_string(), ""))
+        Ok((
+            DialogLine {
+                text: "no line endings".to_string(),
+                tags: vec![]
+            },
+            ""
+        ))
     );
+
     assert_eq!(
         dialog_line().easy_parse("one line ending\n"),
-        Ok(("one line ending".to_string(), ""))
+        Ok((
+            DialogLine {
+                text: "one line ending".to_string(),
+                tags: vec![]
+            },
+            ""
+        ))
     );
+
     assert_eq!(
         dialog_line().easy_parse("both line endings\r\n"),
-        Ok(("both line endings".to_string(), ""))
+        Ok((
+            DialogLine {
+                text: "both line endings".to_string(),
+                tags: vec![]
+            },
+            ""
+        ))
     );
+
     assert_eq!(
         dialog_line().easy_parse("          line starting with spaces\r\n"),
-        Ok(("line starting with spaces".to_string(), ""))
+        Ok((
+            DialogLine {
+                text: "line starting with spaces".to_string(),
+                tags: vec![]
+            },
+            ""
+        ))
     );
+
     assert_eq!(
         dialog_line().easy_parse("       \n \r\n   line starting with newlines and spaces\r\n"),
-        Ok(("line starting with newlines and spaces".to_string(), ""))
+        Ok((
+            DialogLine {
+                text: "line starting with newlines and spaces".to_string(),
+                tags: vec![]
+            },
+            ""
+        ))
     );
 }
 
@@ -175,7 +209,7 @@ fn test_choice() {
         Ok((
             Choice {
                 text: "yeah".to_string(),
-                dialog_lines: vec!["one".to_string(), "two".to_string(), "three".to_string()],
+                dialog_lines: vec!["one".into(), "two".into(), "three".into()],
                 divert: Divert {
                     knot_title: "divert".to_string()
                 }
@@ -189,7 +223,7 @@ fn test_choice() {
         Ok((
             Choice {
                 text: "yeah".to_string(),
-                dialog_lines: vec!["one".to_string(), "two".to_string()],
+                dialog_lines: vec!["one".into(), "two".into()],
                 divert: Divert {
                     knot_title: "paris".to_string()
                 }
@@ -203,7 +237,7 @@ fn test_choice() {
         Ok((
             Choice {
                 text: "yeah".to_string(),
-                dialog_lines: vec!["one".to_string(), "two".to_string()],
+                dialog_lines: vec!["one".into(), "two".into()],
                 divert: Divert {
                     knot_title: "paris".to_string()
                 }
@@ -218,7 +252,7 @@ fn test_choice() {
         Ok((
             Choice {
                 text: "yeah".to_string(),
-                dialog_lines: vec!["one".to_string(), "two".to_string()],
+                dialog_lines: vec!["one".into(), "two".into()],
                 divert: Divert {
                     knot_title: "paris".to_string()
                 }
@@ -246,14 +280,14 @@ fn test_story() {
                     "INTRO".to_string() => Knot {
                         title: "INTRO".to_string(),
                         dialog_lines: vec![
-                            "to paris".to_string()
+                            "to paris".into()
                         ],
                         ending: KnotEnding::DIVERT("paris".into()),
                     },
                     "paris".to_string() => Knot {
                         title: "paris".to_string(),
                         dialog_lines: vec![
-                            "We are in paris.".to_string()
+                            "We are in paris.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "ending".into()
@@ -262,7 +296,7 @@ fn test_story() {
                     "ending".to_string() => Knot {
                         title: "ending".to_string(),
                         dialog_lines: vec![
-                            "THE END now.".to_string()
+                            "THE END now.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "END".into()
@@ -282,17 +316,17 @@ fn test_story() {
                     "INTRO".to_string() => Knot {
                         title: "INTRO".to_string(),
                         dialog_lines: vec![
-                            "to paris?".to_string()
+                            "to paris?".into()
                         ],
                         ending: KnotEnding::CHOICES(vec![
                             Choice {
                                 text: "yeah".to_string(),
-                                dialog_lines: vec!["yes, please".to_string()],
+                                dialog_lines: vec!["yes, please".into()],
                                 divert: "paris".into(),
                             },
                             Choice {
                                 text: "no".to_string(),
-                                dialog_lines: vec!["no, thank you".to_string()],
+                                dialog_lines: vec!["no, thank you".into()],
                                 divert: "ending".into(),
                             }
                         ]),
@@ -300,7 +334,7 @@ fn test_story() {
                     "paris".to_string() => Knot {
                         title: "paris".to_string(),
                         dialog_lines: vec![
-                            "We are in paris.".to_string()
+                            "We are in paris.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "ending".into()
@@ -309,7 +343,7 @@ fn test_story() {
                     "ending".to_string() => Knot {
                         title: "ending".to_string(),
                         dialog_lines: vec![
-                            "THE END now.".to_string()
+                            "THE END now.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "END".into()
@@ -329,9 +363,9 @@ fn test_story() {
                     "INTRO".to_string() => Knot {
                         title: "INTRO".to_string(),
                         dialog_lines: vec![
-                            "Want to go to paris?".to_string(),
-                            "PLEASE!?".to_string(),
-                            "will you?????????".to_string(),
+                            "Want to go to paris?".into(),
+                            "PLEASE!?".into(),
+                            "will you?????????".into(),
                         ],
                         ending: KnotEnding::CHOICES(vec![
                             Choice {
@@ -342,11 +376,11 @@ fn test_story() {
                             Choice {
                                 text: "\"Around the world, Monsieur?\"".to_string(),
                                 dialog_lines: vec![
-                                    "I was utterly astonished.".to_string(),
+                                    "I was utterly astonished.".into(),
                                     concat!("\"You are in jest!\" I told him in dignified affront. ",
                                         "THIS IS A VERY LONG LINE OF TEXT SO LONG ON MY SO LOOOOOO",
                                         "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",
-                                        "OOOOOOOOOOOOOOOOOOOOOOOONG!").to_string(),
+                                        "OOOOOOOOOOOOOOOOOOOOOOOONG!").into(),
                                 ],
                                 divert: "ending".into(),
                             },
@@ -355,7 +389,7 @@ fn test_story() {
                     "paris".to_string() => Knot {
                         title: "paris".to_string(),
                         dialog_lines: vec![
-                            "We are in paris.".to_string()
+                            "We are in paris.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "ending".into()
@@ -364,7 +398,7 @@ fn test_story() {
                     "ending".to_string() => Knot {
                         title: "ending".to_string(),
                         dialog_lines: vec![
-                            "THE END now.".to_string()
+                            "THE END now.".into()
                         ],
                         ending: KnotEnding::DIVERT(
                             "END".into()
@@ -384,7 +418,7 @@ fn test_story() {
                     "INTRO".to_string() => Knot {
                         title: "INTRO".to_string(),
                         dialog_lines: vec![
-                            "a thing".to_string()
+                            "a thing".into()
                         ],
                         ending: KnotEnding::CHOICES(vec![
                             Choice {
@@ -425,12 +459,12 @@ fn test_comments() {
     );
 
     assert_eq!(
-        rest_of_the_line_ignoring_comments().easy_parse("text // comment"),
+        rest_of_the_line_ignoring_comments_with_tags().easy_parse("text // comment"),
         Ok(("text".into(), ""))
     );
 
     assert_eq!(
-        rest_of_the_line_ignoring_comments().easy_parse("text /* comment */"),
+        rest_of_the_line_ignoring_comments_with_tags().easy_parse("text /* comment */"),
         Ok(("text".into(), ""))
     );
 
@@ -532,10 +566,10 @@ fn test_comments() {
     ////                    "INTRO".to_string() => Knot {
     ////                        title: "INTRO".to_string(),
     ////                        dialog_lines: vec![
-    ////                            "dialog 1".to_string(),
-    ////                            "dialog 2".to_string(),
-    ////                            "dialog 3".to_string(),
-    ////                            "dialog 4".to_string(),
+    ////                            "dialog 1".into(),
+    ////                            "dialog 2".into(),
+    ////                            "dialog 3".into(),
+    ////                            "dialog 4".into(),
     ////                        ],
     ////                        ending: KnotEnding::DIVERT(
     ////                            "END".into()
@@ -546,4 +580,26 @@ fn test_comments() {
     ////            ""
     ////        ))
     ////    );
+}
+
+#[test]
+fn test_tags() {
+    assert!(tag().easy_parse("no line endings").is_err());
+
+    assert_eq!(
+        many1::<Vec<String>, _, _>(tag()).easy_parse("# one # two"),
+        Ok((vec!["one".into(), "two".into()], ""))
+    );
+
+    assert_eq!(
+        dialog_line().easy_parse("Passepartout: Really, Monsieur. # surly # really_monsieur.ogg"),
+        Ok((
+            DialogLine {
+                text: "Passepartout: Really, Monsieur.".to_string(),
+                tags: vec!["surly".into(), "really_monsieur.ogg".into()]
+            }
+            .into(),
+            ""
+        ))
+    );
 }

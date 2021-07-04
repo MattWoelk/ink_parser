@@ -1,12 +1,13 @@
 #![warn(rust_2018_idioms)]
-//#![allow(unused)]
 
 mod tests;
 
 use combine::parser::char::{char, spaces, string};
 use combine::parser::choice::choice;
 use combine::parser::repeat::take_until;
-use combine::{attempt, many, many1, optional, value, ParseError, Parser, RangeStream, Stream};
+use combine::{
+    attempt, eof, many, many1, optional, value, ParseError, Parser, RangeStream, Stream,
+};
 use combine::{not_followed_by, satisfy, EasyParser};
 use std::collections::BTreeMap;
 
@@ -17,6 +18,12 @@ use std::collections::BTreeMap;
 // TODO: pass state along, so when parsing fails I can debug it.
 // TODO: variables, conditionals, etc.
 
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct DialogLine {
+    text: String,
+    tags: Vec<String>,
+}
+
 type KnotTitle = String;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -26,7 +33,7 @@ pub struct Divert {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Choice {
     text: String,
-    dialog_lines: Vec<String>,
+    dialog_lines: Vec<DialogLine>,
     divert: Divert,
 }
 
@@ -39,7 +46,7 @@ pub enum KnotEnding {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Knot {
     title: String,
-    dialog_lines: Vec<String>,
+    dialog_lines: Vec<DialogLine>,
     ending: KnotEnding,
 }
 
@@ -62,6 +69,15 @@ impl Default for Knot {
             title: "".to_string(),
             dialog_lines: vec![],
             ending: KnotEnding::CHOICES(vec![]),
+        }
+    }
+}
+
+impl From<&str> for DialogLine {
+    fn from(s: &str) -> Self {
+        Self {
+            text: s.to_string(),
+            tags: vec![],
         }
     }
 }
@@ -98,48 +114,59 @@ where
         .with(value(()))
 }
 
-/// grabs the rest of the line, and consumes any trailing newline marker
-// TODO: this needs to ignore in-line comments as well, which there may be many of
-fn rest_of_the_line_ignoring_comments<Input>() -> impl Parser<Input, Output = String>
+fn tag<Input>() -> impl Parser<Input, Output = String>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    // TODO: can this be simplified? I just want to grab everything until we hit \n or \r
-    //take_until::<String, _, _>(attempt(choice((
-    //    string("\n"),
-    //    string("\r"),
-    //    string("//"),
-    //    string("/*"),
-    //))))
+    attempt(string("#"))
+        .with(take_until::<String, _, _>(choice((
+            string("#"),
+            string("\n"),
+            string("\r\n"),
+            eof().map(|_| ""),
+        ))))
+        .map(|x| x.trim().to_string())
+}
 
+fn rest_of_the_line_ignoring_comments_with_tags<Input>() -> impl Parser<Input, Output = DialogLine>
+where
+    Input: Stream<Token = char>,
+    Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
+{
     // TODO: this needs to ignore inline comments. :/
     //       maybe we call this a bunch of times, then flatten the resulting Strings?
     //       ... though having a newline within the multi_line_comment seems to break things ... which is unexpected ...
-    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r' && c != '/'))
+    many1::<String, _, _>(satisfy(|c| c != '\n' && c != '\r' && c != '/' && c != '#'))
         // TODO: this needs to be "//", not just a single slash, or that's going to cause prooooooblems...
+        // TODO: can I use take_until, like we're doing in tag()?
+        .and(optional(many1::<Vec<String>, _, _>(tag())))
         .skip(optional(single_line_comment()))
         .skip(optional(multi_line_comment()))
         .skip(optional(choice((string("\n"), string("\r\n")))))
-        .map(|s| s.trim_end().into())
+        .map(|(s, tags)| DialogLine {
+            text: s.trim_end().into(),
+            tags: tags.unwrap_or_default(),
+        })
 }
 
-fn dialog_line<Input>() -> impl Parser<Input, Output = String>
+fn dialog_line<Input>() -> impl Parser<Input, Output = DialogLine>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    spaces().with(rest_of_the_line_ignoring_comments())
+    spaces().with(rest_of_the_line_ignoring_comments_with_tags())
 }
 
 /// Must call spaces() before calling this,
 /// because we can't make it optional() if spaces() consumes input
-fn dialog_lines<'a, Input>() -> impl Parser<Input, Output = Vec<String>>
+/// TODO: fix that, so we can have spaces() at the start of this properly. (see below)
+fn dialog_lines<'a, Input>() -> impl Parser<Input, Output = Vec<DialogLine>>
 where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many1::<Vec<String>, _, _>(
+    many1::<Vec<DialogLine>, _, _>(
         //attempt(spaces()).with(
         // TODO: I would love to have this here, but it consumes input,
         //                        so we can't have dialog_lines() be optional()

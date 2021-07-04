@@ -4,6 +4,10 @@ supported [features](https://github.com/inkle/ink/blob/master/Documentation/Writ
 - [x] content
 - [ ] comments
 - [ ] tags
+  - [ ] multiple same-line tags
+  - [ ] "Tags for a line can be written above it, or on the end of the line"
+  - [ ] tags above the first line of a knot are also tags on that knot
+  - [ ] global tags (at the very top of the main ink file)
 - [x] choices (+)
 - [x] sticky choices as special (+)
 - [ ] choices (*)
