@@ -447,7 +447,7 @@ fn test_comments() {
 
     assert_eq!(
         single_line_comment().easy_parse("//cool\n text \n"),
-        Ok(((), " text \n"))
+        Ok(((), "\n text \n"))
     );
 
     assert_eq!(
@@ -461,9 +461,21 @@ fn test_comments() {
     );
 
     assert_eq!(
+        multi_line_comment().easy_parse("/* comment\n */"),
+        Ok(((), ""))
+    );
+
+    assert_eq!(
+        dialog_lines().easy_parse("text /* comment\n */"),
+        Ok((vec!["text".into()], ""))
+    );
+
+    assert_eq!(
         dialog_lines().easy_parse("text /* comment\n */\ncool // comment 2\n yeah"),
         Ok((vec!["text".into(), "cool".into(), "yeah".into()], ""))
     );
+
+    // TODO: dialog_lines() where we _start_ with a comment or multi line comment
 
     assert_eq!(
         dialog_lines().easy_parse("dialog 1\n// comment 1\ndialog 2"),
@@ -475,43 +487,83 @@ fn test_comments() {
         Ok((vec!["text".into(), "cool".into(), "yeah".into()], ""))
     );
 
-    //    //    assert_eq!(
-    //    //        dialog_lines().easy_parse(
-    //    //            "dialog 1
-    //    //// comment 1
-    //    //dialog 2
-    //    ///*
-    //    //    comment 2
-    //    //*/
-    //    //dialog 3 // comment 3
-    //    //dialog /* comment 4 */4"
-    //    //        ),
-    //    //        Ok((
-    //    //            vec![
-    //    //                "dialog 1".into(),
-    //    //                "dialog 2".into(),
-    //    //                "dialog 3".into(),
-    //    //                "dialog 4".into()
-    //    //            ],
-    //    //            ""
-    //    //        ))
-    //    //    );
+    assert_eq!(
+        dialog_lines().easy_parse("dialog /* comment 4 */4"),
+        Ok((vec!["dialog 4".into()], ""))
+    );
 
     assert_eq!(
-        knot_without_title().easy_parse(
+        dialog_lines().easy_parse(
             "dialog 1
 // comment 1
--> END"
+dialog 2
+/*
+    comment 2
+*/
+dialog 3 // comment 3
+dialog /* comment 4 */4"
         ),
         Ok((
-            Knot {
-                title: "INTRO".to_string(),
-                dialog_lines: vec!["dialog 1".into()],
-                ending: KnotEnding::DIVERT("END".into())
-            },
+            vec![
+                "dialog 1".into(),
+                "dialog 2".into(),
+                "dialog 3".into(),
+                "dialog 4".into()
+            ],
             ""
         ))
     );
+
+    assert_eq!(
+        dialog_lines().easy_parse(
+            "dialog 1
+-> END"
+        ),
+        Ok((vec!["dialog 1".into(),], "-> END"))
+    );
+
+    assert_eq!(
+        single_line_comment().easy_parse(
+            "// comment 1
+-> END"
+        ),
+        Ok(((), "\n-> END"))
+    );
+
+    assert_eq!(
+        dialog_lines().easy_parse(
+            "dialog 1
+// comment 1
+cool
+-> END"
+        ),
+        Ok((vec!["dialog 1".into(), "cool".into()], "-> END"))
+    );
+
+    //    assert_eq!(
+    //        dialog_lines().easy_parse(
+    //            "dialog 1
+    //// comment 1
+    //-> END"
+    //        ),
+    //        Ok((vec!["dialog 1".into(),], "-> END"))
+    //    );
+
+    //    assert_eq!(
+    //        knot_without_title().easy_parse(
+    //            "dialog 1
+    //// comment 1
+    //-> END"
+    //        ),
+    //        Ok((
+    //            Knot {
+    //                title: "INTRO".to_string(),
+    //                dialog_lines: vec!["dialog 1".into()],
+    //                ending: KnotEnding::DIVERT("END".into())
+    //            },
+    //            ""
+    //        ))
+    //    );
 
     //    //    assert_eq!(
     //    //        knot_without_title().easy_parse(
