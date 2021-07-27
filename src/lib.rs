@@ -159,13 +159,33 @@ where
         })
 }
 
-// TODO: make this out of the good bits of dialog_lines(), or delete it entirely???
+/// This does not absorb the following newline character ...right?
 pub fn dialog_line<Input>() -> impl Parser<Input, Output = DialogLine>
 where
     Input: Stream<Token = char>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    spaces().with(rest_of_the_line_ignoring_comments_with_tags())
+    not_followed_by(choice((string("->"), string("+"))))
+        .skip(spaces())
+        .skip(not_followed_by(choice((
+            attempt(string("->")),
+            attempt(string("+")),
+        )))) // TODO: when this fails, we don't gracefully do anything...
+        .with(many1::<String, _, _>(
+            // TODO: make this a function: grab a line, ignoring multiline comments
+            many1::<String, _, _>(
+                satisfy(|c| c != '\n' && c != '\r' && c != '/' && c != '#'), // TODO: do better than this, for comments
+            ) // TODO: do we really need to find a character before a multi line comment? Hmm...
+            .skip(optional(many1::<(), _, _>(multi_line_comment()))),
+        ))
+        .and(optional(many1::<Vec<String>, _, _>(tag())))
+        .skip(optional(single_line_comment()))
+        // TODO: I would love to put divert() right in here; not sure why I can't
+        .skip(spaces())
+        .map(|(s, tags)| DialogLine {
+            text: s.trim().to_string(),
+            tags: tags.unwrap_or_default(),
+        })
 }
 
 /// Must call spaces() before calling this,
@@ -176,43 +196,10 @@ where
     Input: RangeStream<Token = char, Range = &'a str>,
     Input::Error: ParseError<Input::Token, Input::Range, Input::Position>,
 {
-    many1::<Vec<DialogLine>, _, _>(
-        //attempt(spaces()).with
-        // TODO: I would love to have this here, but it consumes input,
-        //                        so we can't have dialog_lines() be optional()
-        not_followed_by(choice((string("->"), string("+"))))
-            .skip(optional(single_line_comment()))
-            .skip(optional(newline_character()))
-            .skip(spaces())
-            .skip(optional(
-                multi_line_comment().skip(optional(newline_character())),
-            )) // TODO: this section is the new stuff. Fix it.
-            .skip(not_followed_by(choice((
-                attempt(string("->")),
-                attempt(string("+")),
-            )))) // TODO: when this fails, we don't gracefully do anything...
-            .with(many1::<String, _, _>(
-                many1::<String, _, _>(
-                    satisfy(|c| c != '\n' && c != '\r' && c != '/'), // TODO: do better than this, for comments
-                ) // TODO: do we really need to find a character before a multi line comment? Hmm...
-                .skip(optional(many1::<(), _, _>(multi_line_comment()))),
-            ))
-            .skip(optional(single_line_comment()))
-            // TODO: I would love to put divert() right in here; not sure why I can't
-            //.skip(not_followed_by(string("+"))) // TODO: does this do anything?
-            //.skip(not_followed_by(string("->"))) // TODO: does this do anything?
-            .skip(spaces())
-            .map(|s| DialogLine {
-                text: s.trim().to_string(),
-                tags: vec![],
-            }),
-        // TODO: desired functionality:
-        //       - parse N of these:
-        //           - parse multi-line comment (0 or more)
-        //           - parse text (1 or more)
-        //       - parse single line comment (optional)
-        //       - combine all the text into one string, and return that
-    )
+    many1::<Vec<DialogLine>, _, _>(dialog_line().skip(spaces().skip(many::<(), _, _>(choice((
+        single_line_comment(),
+        multi_line_comment(),
+    ))))))
 }
 
 fn divert<'a, Input>() -> impl Parser<Input, Output = Divert>
